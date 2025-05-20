@@ -1,0 +1,188 @@
+name: control
+description: "Core control-flow primitives"
+actions:
+  if_node:
+    description: "Branch based on a boolean expression"
+    implementation: "control.if_node"
+    inputs:
+      condition:
+        type: string
+        required: true
+      then_step:
+        type: string
+        required: true
+      else_step:
+        type: string
+        required: false
+    outputs:
+      result:
+        type: boolean
+
+  switch:
+    description: "Route by matching a value against cases"
+    implementation: "control.switch"
+    inputs:
+      value:
+        type: any
+        required: true
+      cases:
+        type: object
+        required: true
+      default:
+        type: string
+        required: false
+    outputs:
+      matched_case:
+        type: any
+
+  for_each:
+    description: "Iterate over a list, running a subflow per item"
+    implementation: "control.for_each"
+    inputs:
+      list:
+        type: List[Any]
+        required: true
+      iterator_name:
+        type: string
+        required: true
+      subflow:
+        type: List[any]
+        required: true
+    outputs:
+      results:
+        type: List[Any]
+
+  while_loop:
+    description: "Repeat subflow while condition is true"
+    implementation: "control.while_loop"
+    inputs:
+      condition:
+        type: string
+        required: true
+      subflow:
+        type: List[any]
+        required: true
+      max_iterations:
+        type: number
+        required: false
+        default: 100
+    outputs:
+      results:
+        type: List[Any]
+
+  parallel:
+    description: "Run multiple subflows concurrently"
+    implementation: "control.parallel"
+    inputs:
+      branches:
+        type: List[List[any]]
+        required: true
+      wait_for_all:
+        type: boolean
+        required: false
+        default: true
+    outputs:
+      branch_outputs:
+        type: List[Any]
+
+  merge:
+    description: "Join parallel branches into a single flow"
+    implementation: "control.merge"
+    inputs:
+      inputs:
+        type: List[Any]
+        required: true
+      strategy:
+        type: string
+        required: false
+        default: "concat"
+    outputs:
+      merged:
+        type: any
+
+  delay:
+    description: "Pause execution for a fixed duration"
+    implementation: "control.delay"
+    inputs:
+      seconds:
+        type: number
+        required: true
+    outputs:
+      done:
+        type: boolean
+
+  wait_for:
+    description: "Wait until a timestamp or external event"
+    implementation: "control.wait_for"
+    inputs:
+      until:
+        type: string
+        required: true
+      timeout:
+        type: number
+        required: false
+    outputs:
+      triggered:
+        type: boolean
+
+  try_catch:
+    description: "Execute subflow, catching any errors"
+    implementation: "control.try_catch"
+    inputs:
+      subflow:
+        type: List[any]
+        required: true
+      on_error:
+        type: List[any]
+        required: false
+    outputs:
+      success:
+        type: boolean
+      error:
+        type: object
+
+  retry:
+    description: "Execute an action or subflow, retrying on failure"
+    implementation: "control.retry"
+    inputs:
+      action_step:
+        type: any
+        required: true
+      attempts:
+        type: number
+        required: false
+        default: 3
+      backoff_seconds:
+        type: number
+        required: false
+        default: 0
+    outputs:
+      output:
+        type: any
+      attempts_made:
+        type: number
+
+  subflow:
+    description: "Call another flow by ID, passing inputs"
+    implementation: "control.subflow"
+    inputs:
+      flow_id:
+        type: string
+        required: true
+      inputs:
+        type: object
+        required: false
+    outputs:
+      result:
+        type: any
+
+  terminate:
+    description: "Halt execution immediately"
+    implementation: "control.terminate"
+    inputs:
+      message:
+        type: string
+        required: false
+    outputs:
+      halted:
+        type: boolean

@@ -1,0 +1,37 @@
+name: basic
+description: "Basic mathematical operations"
+version: "1.0.0"
+
+modules:
+  - add
+  - multiply
+
+actions:
+  add:
+    description: "Sum two numbers"
+    implementation: "add.add"
+    inputs:
+      a:
+        type: number
+        required: true
+        prompt:
+          type: text
+          question: "What is the first number?"
+      b:
+        type: number
+        required: true
+        prompt:
+          type: select
+          question: "Pick the second number"
+          options: [1,2,3,4,5]
+    outputs:
+      sum: number
+
+  multiply:
+    description: "Multiply two numbers"
+    implementation: "multiply.multiply"
+    inputs:
+      x: { type: number, required: true }
+      y: { type: number, required: true }
+    outputs:
+      product: number

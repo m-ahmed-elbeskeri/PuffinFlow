@@ -1,0 +1,92 @@
+
+name: prompts
+description: "User interaction and prompt handling integration"
+version: "1.0.0"
+
+modules:
+  - ask
+  - notify
+  - progress
+  - __init__
+
+actions:
+  ask:
+    description: "Ask the user for input"
+    implementation: "ask.ask"
+    inputs:
+      question:
+        type: string
+        required: true
+        description: "The question to ask the user"
+      type:
+        type: string
+        required: false
+        default: "text"
+        description: "Type of input (text, select, confirm, number)"
+        enum: ["text", "select", "confirm", "number"]
+      options:
+        type: array
+        required: false
+        description: "Options for select inputs"
+      default:
+        type: any
+        required: false
+        description: "Default value"
+    outputs:
+      answer:
+        type: any
+        description: "The user's response"
+
+  notify:
+    description: "Display a notification message to the user"
+    implementation: "notify.notify"
+    inputs:
+      message:
+        type: string
+        required: true
+        description: "The message to display with optional variable substitution using {step_id.output_name} syntax"
+        examples:
+          - "Operation completed successfully"
+          - "The calculated value is {calc_step.result}"
+          - "Hello {get_name.answer}, your score is {calculate.sum}"
+      level:
+        type: string
+        required: false
+        default: "info"
+        description: "Notification level"
+        enum: ["info", "success", "warning", "error"]
+    outputs:
+      status:
+        type: string
+        description: "Status of the notification"
+      level:
+        type: string
+        description: "Level used for the notification"
+
+  progress:
+    description: "Show progress to the user"
+    implementation: "progress.progress"
+    inputs:
+      message:
+        type: string
+        required: false
+        description: "Message to display with the progress bar"
+      percent:
+        type: number
+        required: false
+        description: "Progress as a percentage (0-100)"
+      total:
+        type: number
+        required: false
+        description: "Total number of items"
+      current:
+        type: number
+        required: false
+        description: "Current item number"
+    outputs:
+      status:
+        type: string
+        description: "Status of the progress update"
+      percent:
+        type: number
+        description: "The current progress percentage"

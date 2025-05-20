@@ -1,0 +1,85 @@
+name: slack
+description: Slack integration for FlowForge
+version: "0.1.0"
+modules:
+  - messages
+  - channels
+  - users
+  - oauth
+
+actions:
+  post_message:
+    description: "Post a message to a Slack channel"
+    implementation: messages.post_message
+    inputs:
+      channel:
+        type: string
+        description: "Channel ID or name to post to"
+        required: true
+      text:
+        type: string
+        description: "Message text content"
+        required: true
+      token:
+        type: string
+        description: "Slack OAuth token (can be stored in environment variable)"
+        required: true
+      blocks:
+        type: array
+        description: "Message blocks for rich formatting"
+      thread_ts:
+        type: string
+        description: "Thread timestamp to reply to"
+    outputs:
+      message_id:
+        type: string
+        description: "ID of the posted message"
+      timestamp:
+        type: string
+        description: "Timestamp of the posted message"
+      
+  list_channels:
+    description: "List available channels"
+    implementation: channels.list_channels
+    inputs:
+      token:
+        type: string
+        description: "Slack OAuth token"
+        required: true
+      types:
+        type: string
+        description: "Types of channels to include (public, private, mpim, im)"
+    outputs:
+      channels:
+        type: array
+        description: "List of channels"
+        
+  authorize:
+    description: "Authorize the app with Slack using OAuth"
+    implementation: oauth.authorize
+    inputs:
+      client_id:
+        type: string
+        description: "Slack app client ID"
+        required: true
+      client_secret:
+        type: string
+        description: "Slack app client secret"
+        required: true
+      code:
+        type: string
+        description: "OAuth authorization code"
+        required: true
+      redirect_uri:
+        type: string
+        description: "OAuth redirect URI"
+    outputs:
+      access_token:
+        type: string
+        description: "OAuth access token"
+      team_id:
+        type: string
+        description: "Team ID"
+      team_name:
+        type: string
+        description: "Team name"

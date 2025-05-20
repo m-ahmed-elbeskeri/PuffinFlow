@@ -1,0 +1,87 @@
+name: variables
+description: "Variable management for FlowForge flows"
+modules:
+  - variables
+actions:
+  get_local:
+    description: "Get a local flow variable"
+    implementation: "variables.get_local"
+    inputs:
+      name:
+        type: string
+        description: "Variable name"
+        required: true
+      default:
+        type: any
+        description: "Default value if variable doesn't exist"
+    outputs:
+      value:
+        type: any
+        description: "The variable value"
+  
+  set_local:
+    description: "Set a local flow variable"
+    implementation: "variables.set_local"
+    inputs:
+      name:
+        type: string
+        description: "Variable name"
+        required: true
+      value:
+        type: any
+        description: "Value to set"
+        required: true
+    outputs:
+      value:
+        type: any
+        description: "The variable value that was set"
+        
+  get_env:
+    description: "Get an environment variable"
+    implementation: "variables.get_env"
+    inputs:
+      name:
+        type: string
+        description: "Environment variable name"
+        required: true
+      default:
+        type: string
+        description: "Default value if environment variable doesn't exist"
+    outputs:
+      value:
+        type: string
+        description: "The environment variable value"
+  
+  # Legacy support for backward compatibility
+  get:
+    description: "Get a variable (checks local variables first, then environment)"
+    implementation: "variables.get"
+    inputs:
+      name:
+        type: string
+        description: "Variable name"
+        required: true
+      default:
+        type: any
+        description: "Default value if variable doesn't exist"
+    outputs:
+      value:
+        type: any
+        description: "The variable value"
+  
+  set:
+    description: "Set a local flow variable (legacy method)"
+    implementation: "variables.set"
+    inputs:
+      name:
+        type: string
+        description: "Variable name"
+        required: true
+      value:
+        type: any
+        description: "Value to set"
+        required: true
+    outputs:
+      value:
+        type: any
+        description: "The variable value that was set"
