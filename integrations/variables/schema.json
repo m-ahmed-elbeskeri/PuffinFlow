@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "actions": {
+    "get_local": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Variable name" },
+        "default": { "description": "Default value if variable doesn't exist" }
+      },
+      "required": ["name"]
+    },
+    "set_local": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Variable name" },
+        "value": { "description": "Value to set" }
+      },
+      "required": ["name", "value"]
+    },
+    "get_env": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Environment variable name" },
+        "default": { "type": "string", "description": "Default value if not set" }
+      },
+      "required": ["name"]
+    },
+    "get": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Variable name" },
+        "default": { "description": "Default value if not found" }
+      },
+      "required": ["name"]
+    },
+    "set": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Variable name" },
+        "value": { "description": "Value to set" }
+      },
+      "required": ["name", "value"]
+    }
+  }
+}

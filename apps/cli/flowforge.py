@@ -20,6 +20,12 @@ from datetime import datetime, timedelta, timezone
 # Add parent directory to path to allow importing core modules
 sys.path.append(str(Path(__file__).parent.parent))
 
+# Ensure parent of 'packages' is in sys.path so 'packages.sdk' works
+CURRENT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = CURRENT_DIR.parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from packages.core.registry import Registry
 from packages.codegen.code_generator import generate_mermaid, generate_python
 
@@ -441,6 +447,45 @@ def generate_code_command(flow_file_path_str, output_dir, project_name):
         click.echo(f"Error generating project: {type(e).__name__} - {e}", err=True)
         sys.exit(1)
 
+@cli.group()
+def plugins():
+    """Plugin management commands."""
+    pass
+
+@plugins.command("install")
+@click.argument('source')
+@click.option('--target', default="./integrations", help="Target directory")
+def install_plugin(source, target):
+    """Install a plugin from a source."""
+    from packages.sdk.plugin_installer import install_from_github
+    
+    if source.startswith("github:"):
+        repo = source[len("github:"):]
+        success = install_from_github(repo, target)
+        if success:
+            click.echo("Plugin installed successfully")
+        else:
+            click.echo("Failed to install plugin")
+            sys.exit(1)
+    else:
+        click.echo(f"Error: Unsupported source format: {source}")
+        click.echo("Supported formats: github:username/repo")
+        sys.exit(1)
+
+@plugins.command("list")
+def list_plugins():
+    """List installed plugins."""
+    registry = Registry()
+    registry.load_integrations()
+    
+    if not registry.plugins:
+        click.echo("No plugins installed")
+        return
+    
+    click.echo("Installed plugins:")
+    for name, plugin in registry.plugins.items():
+        click.echo(f"  {name} v{plugin['version']}: {plugin['description']}")
+        click.echo(f"    Actions: {', '.join(plugin['actions'].keys())}")
+
 if __name__ == '__main__':
-    DEFAULT_FLOWS_DIR.mkdir(parents=True, exist_ok=True)
     cli()
