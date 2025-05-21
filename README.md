@@ -1,17 +1,23 @@
-# ⚡ FlowForge
+# FlowForge
 
-**The open-source AI-native automation platform**  
-Build powerful workflows with a beautiful canvas, real code, and plugin-powered integrations.
+**AI-native, open-source workflow automation platform**  
+Build, run, and scale powerful automations with a visual editor, real Python code, and a modular plugin system.
 
-> Think: Make.com + n8n + GitHub Copilot — open-source and code-friendly.
+Inspired by the best of Make.com and n8n. Reimagined with AI-first usability and developer-first design.
 
 ---
 
-## 🚀 Why FlowForge?
+## Why FlowForge
 
-- 🧠 **AI-first**: Generate automations from natural language
-- 🧱 **Extensible**: Drop-in Python plugin system
-- 🖥️ **Local or Cloud**: Run via CLI, Docker, or SaaS
-- ⚡ **Dev-friendly**: YAML and Python-based flows with introspection
-- 🔁 **Powerful control flow**: `if`, `while`, `retry`, `parallel`, `subflow`
-- 🧪 **Open-source**: MIT licensed, fully auditable and community-driven
+- AI-assisted flow creation from natural language descriptions
+- Declarative YAML + Python-based flow definitions
+- Native plugin architecture for custom logic and integrations
+- Built-in control primitives: if, loop, parallel, delay, try/catch
+- CLI, Docker, and Helm-based deployment
+- Open-source core under the MIT license
+
+Whether you're automating Slack notifications or orchestrating distributed ETL pipelines, FlowForge gives you full control, visibility, and extensibility.
+
+---
+
+
