@@ -1,0 +1,132 @@
+name: postgres
+description: "PostgreSQL database integration for FlowForge"
+primary_module: postgres
+modules:
+  - postgres
+  - query
+
+actions:
+  connect:
+    description: "Connect to a PostgreSQL database with explicit credentials"
+    implementation: postgres.connect
+    inputs:
+      host:
+        type: string
+        description: "Database server hostname or IP"
+        required: true
+      database:
+        type: string
+        description: "Database name"
+        required: true
+      user:
+        type: string
+        description: "Database username"
+        required: true
+      password:
+        type: string
+        description: "Database password"
+        required: true
+      port:
+        type: number
+        description: "Database server port"
+        default: 5432
+    outputs:
+      connection:
+        type: object
+        description: "Database connection object"
+      success:
+        type: boolean
+        description: "Connection success status"
+      error:
+        type: string
+        description: "Error message, if any"
+  
+  connect_with_creds:
+    description: "Connect to PostgreSQL using credentials from environment variables or connection string"
+    implementation: postgres.connect_with_creds
+    inputs:
+      creds_source:
+        type: string
+        description: "Source of credentials: 'env' for environment variables, 'conn_string' for connection string"
+        default: "env"
+      conn_string:
+        type: string
+        description: "PostgreSQL connection string (when creds_source is 'conn_string')"
+    outputs:
+      connection:
+        type: object
+        description: "Database connection object"
+      success:
+        type: boolean
+        description: "Connection success status"
+      error:
+        type: string
+        description: "Error message, if any"
+  
+  query:
+    description: "Execute a SQL query and return results"
+    implementation: query.query
+    inputs:
+      connection:
+        type: object
+        description: "Database connection object from connect or connect_with_creds"
+        required: true
+      sql:
+        type: string
+        description: "SQL query to execute"
+        required: true
+      parameters:
+        type: object
+        description: "Query parameters (for parameterized queries)"
+    outputs:
+      rows:
+        type: array
+        description: "Result rows as array of objects"
+      row_count:
+        type: number
+        description: "Number of rows returned"
+      success:
+        type: boolean
+        description: "Query success status"
+      error:
+        type: string
+        description: "Error message, if any"
+  
+  execute:
+    description: "Execute a non-query SQL statement (INSERT, UPDATE, DELETE)"
+    implementation: query.execute
+    inputs:
+      connection:
+        type: object
+        description: "Database connection object from connect or connect_with_creds"
+        required: true
+      sql:
+        type: string
+        description: "SQL statement to execute"
+        required: true
+      parameters:
+        type: object
+        description: "Query parameters (for parameterized queries)"
+    outputs:
+      affected_rows:
+        type: number
+        description: "Number of affected rows"
+      success:
+        type: boolean
+        description: "Execution success status"
+      error:
+        type: string
+        description: "Error message, if any"
+  
+  disconnect:
+    description: "Close a database connection"
+    implementation: postgres.disconnect
+    inputs:
+      connection:
+        type: object
+        description: "Database connection object to close"
+        required: true
+    outputs:
+      success:
+        type: boolean
+        description: "Disconnection success status"

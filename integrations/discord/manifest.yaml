@@ -1,0 +1,275 @@
+name: discord
+description: "Discord integration for sending messages, managing channels, and responding to Discord events"
+version: "1.0.0"
+author: "FlowForge"
+modules:
+  - discord
+  - webhook
+  - triggers
+
+actions:
+  send_message:
+    description: "Send a message to a Discord channel"
+    implementation: "discord.send_message"
+    inputs:
+      channel_id:
+        type: string
+        required: true
+        description: "ID of the Discord channel"
+      content:
+        type: string
+        required: true
+        description: "Content of the message"
+      tts:
+        type: boolean
+        required: false
+        default: false
+        description: "Whether to send as a TTS message"
+    outputs:
+      message_id:
+        type: string
+        description: "ID of the sent message"
+      channel_id:
+        type: string
+        description: "ID of the channel where message was sent"
+      timestamp:
+        type: string
+        description: "Timestamp when the message was sent"
+
+  send_embed:
+    description: "Send a rich embed message to a Discord channel"
+    implementation: "discord.send_embed"
+    inputs:
+      channel_id:
+        type: string
+        required: true
+        description: "ID of the Discord channel"
+      title:
+        type: string
+        required: false
+        description: "Title of the embed"
+      description:
+        type: string
+        required: false
+        description: "Description text of the embed"
+      color:
+        type: string
+        required: false
+        description: "Color of the embed (hex code)"
+      fields:
+        type: array
+        required: false
+        description: "List of fields to add to the embed"
+      image_url:
+        type: string
+        required: false
+        description: "URL to an image to display in the embed"
+      thumbnail_url:
+        type: string
+        required: false
+        description: "URL to a thumbnail image for the embed"
+      author_name:
+        type: string
+        required: false
+        description: "Name of the author to display in the embed"
+      author_icon_url:
+        type: string
+        required: false
+        description: "URL to an icon for the author"
+      footer_text:
+        type: string
+        required: false
+        description: "Footer text for the embed"
+      footer_icon_url:
+        type: string
+        required: false
+        description: "URL to an icon for the footer"
+    outputs:
+      message_id:
+        type: string
+        description: "ID of the sent message"
+      channel_id:
+        type: string
+        description: "ID of the channel where message was sent"
+      timestamp:
+        type: string
+        description: "Timestamp when the message was sent"
+
+  create_webhook:
+    description: "Create a new webhook for a Discord channel"
+    implementation: "webhook.create_webhook"
+    inputs:
+      channel_id:
+        type: string
+        required: true
+        description: "ID of the Discord channel"
+      name:
+        type: string
+        required: true
+        description: "Name of the webhook"
+      avatar_url:
+        type: string
+        required: false
+        description: "URL to an avatar image for the webhook"
+    outputs:
+      webhook_id:
+        type: string
+        description: "ID of the created webhook"
+      webhook_url:
+        type: string
+        description: "URL of the created webhook"
+      token:
+        type: string
+        description: "Token for the created webhook"
+
+  send_webhook:
+    description: "Send a message via a Discord webhook"
+    implementation: "webhook.send_webhook"
+    inputs:
+      webhook_url:
+        type: string
+        required: true
+        description: "URL of the Discord webhook"
+      content:
+        type: string
+        required: false
+        description: "Content of the message"
+      username:
+        type: string
+        required: false
+        description: "Override the webhook's username"
+      avatar_url:
+        type: string
+        required: false
+        description: "Override the webhook's avatar"
+      embeds:
+        type: array
+        required: false
+        description: "List of embeds to send"
+    outputs:
+      success:
+        type: boolean
+        description: "Whether the message was sent successfully"
+
+  get_channel_info:
+    description: "Get information about a Discord channel"
+    implementation: "discord.get_channel_info"
+    inputs:
+      channel_id:
+        type: string
+        required: true
+        description: "ID of the Discord channel"
+    outputs:
+      name:
+        type: string
+        description: "Name of the channel"
+      type:
+        type: string
+        description: "Type of the channel"
+      guild_id:
+        type: string
+        description: "ID of the guild (server) the channel belongs to"
+      position:
+        type: integer
+        description: "Position of the channel in the channel list"
+      topic:
+        type: string
+        description: "Topic of the channel (if applicable)"
+
+  get_guild_info:
+    description: "Get information about a Discord server (guild)"
+    implementation: "discord.get_guild_info"
+    inputs:
+      guild_id:
+        type: string
+        required: true
+        description: "ID of the Discord guild"
+    outputs:
+      name:
+        type: string
+        description: "Name of the guild"
+      member_count:
+        type: integer
+        description: "Number of members in the guild"
+      icon_url:
+        type: string
+        description: "URL to the guild's icon"
+      region:
+        type: string
+        description: "Region of the guild"
+
+triggers:
+  message_received:
+    description: "Triggered when a new message is received in a monitored channel"
+    implementation: "triggers.message_received"
+    inputs:
+      channel_ids:
+        type: array
+        required: true
+        description: "IDs of Discord channels to monitor"
+    outputs:
+      author_id:
+        type: string
+        description: "ID of the message author"
+      author_name:
+        type: string
+        description: "Username of the message author"
+      content:
+        type: string
+        description: "Content of the message"
+      message_id:
+        type: string
+        description: "ID of the message"
+      channel_id:
+        type: string
+        description: "ID of the channel where the message was sent"
+      timestamp:
+        type: string
+        description: "Timestamp when the message was sent"
+      guild_id:
+        type: string
+        description: "ID of the guild (server) where the message was sent"
+
+  reaction_added:
+    description: "Triggered when a reaction is added to a message"
+    implementation: "triggers.reaction_added"
+    inputs:
+      channel_ids:
+        type: array
+        required: false
+        description: "Optional: IDs of Discord channels to monitor"
+    outputs:
+      user_id:
+        type: string
+        description: "ID of the user who added the reaction"
+      message_id:
+        type: string
+        description: "ID of the message that was reacted to"
+      emoji:
+        type: string
+        description: "The emoji that was used as a reaction"
+      channel_id:
+        type: string
+        description: "ID of the channel where the reaction was added"
+      timestamp:
+        type: string
+        description: "Timestamp when the reaction was added"
+
+  webhook_received:
+    description: "Triggered when data is received on a Discord webhook"
+    implementation: "triggers.webhook_received"
+    inputs:
+      webhook_id:
+        type: string
+        required: true
+        description: "ID of the webhook to monitor"
+    outputs:
+      data:
+        type: object
+        description: "The data received from the webhook"
+      headers:
+        type: object
+        description: "The headers received with the webhook request"
+      timestamp:
+        type: string
+        description: "Timestamp when the webhook was received"

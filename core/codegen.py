@@ -35,6 +35,9 @@ NATIVE_VARIABLE_OPS = {
     'variables.get_env', 'variables.get', 'variables.set'
 }
 
+# Global variable to track flow variable names
+flow_variable_names = set()
+
 def generate_mermaid(flow: Dict[str, Any]) -> str:
     """
     Generate a Mermaid graph diagram from a flow definition,
@@ -117,6 +120,53 @@ def generate_mermaid(flow: Dict[str, Any]) -> str:
     
     return '\n'.join(lines)
 
+# Regular expression for strict step.output references
+_REF_RE = re.compile(r"^[A-Za-z_][\w-]*\.[\w-]+$")  # strict "step.output"
+
+def _process_reference(
+    ref: Any, 
+    step_var: Dict[str, str], 
+    context_id: Optional[str] = None
+) -> str:
+    """
+    Turn a YAML value into Python code.
+    """
+    # ── literals ────────────────────────────────────────────────────────────────
+    if isinstance(ref, (int, float, bool)) or ref is None:
+        return repr(ref)
+
+    # ── $ref environment variables (dict form) ─────────────────────────────────
+    if isinstance(ref, dict) and "$ref" in ref:
+        target = ref["$ref"]
+        if isinstance(target, str) and target.startswith("env."):
+            return f"os.environ.get('{target.split('.', 1)[1]}', '')"
+        return repr(ref)
+
+    # ── strings ────────────────────────────────────────────────────────────────
+    if not isinstance(ref, str):
+        return repr(ref)
+
+    ref = ref.strip()
+
+    # 1) template strings ("{…}" or "{{…}}")
+    if "{" in ref and "}" in ref and not ref.startswith("{"):
+        return _process_template_string(ref, step_var, context_id)
+
+    # 2) step-output reference (must match strict regex, *no* spaces)
+    if _REF_RE.match(ref):
+        step_id, field = ref.split(".", 1)
+        if context_id and step_id == context_id:
+            return f"{step_var[step_id]}['{field}']"
+        if step_id in step_var:
+            return f"{step_var[step_id]}['{field}']"
+
+    # 3) plain flow-variable
+    if ref in flow_variable_names and " " not in ref:
+        return f"flow_variables.get('{ref}', None)"
+
+    # 4) ordinary literal string
+    return repr(ref)
+
 
 def _process_template_string(template: str, step_var: Dict[str, str], context_id: Optional[str] = None) -> str:
     """
@@ -182,7 +232,7 @@ def _process_template_string(template: str, step_var: Dict[str, str], context_id
         
         else:
             # Simple variable name or expression
-            replacement = f"{{flow_variables.get('{expression}', {expression})}}"
+            replacement = f"{{flow_variables.get('{expression}', '')}}"
         
         result_template = result_template.replace(placeholder, replacement)
     
@@ -210,64 +260,13 @@ def _process_template_string(template: str, step_var: Dict[str, str], context_id
         
         result_template = result_template.replace(placeholder, replacement)
     
-    return f"f\"{result_template}\""
+    # Escape real new-lines so the generated code stays on one line
+    result_template = result_template.replace("\n", "\\n")
+    # Return an f-string (no stray "sum" built-in!)
+    return f'f"{result_template}"'
 
 
-def _process_reference(ref: Any, step_var: Dict[str, str], context_id: Optional[str] = None) -> str:
-    """
-    Convert a string reference like 'step_id.output' to the appropriate Python variable access.
-    Returns the raw value if it's not a reference.
-    """
-    if isinstance(ref, (int, float, bool)):
-        return repr(ref)
-
-    # Special handling for environment variable references in dict format
-    if isinstance(ref, dict) and '$ref' in ref:
-        ref_value = ref['$ref']
-        if isinstance(ref_value, str) and ref_value.startswith('env.'):
-            env_var = ref_value.split('.', 1)[1]
-            return f"os.environ.get('{env_var}', '')"
-
-    if isinstance(ref, str):
-        ref = ref.strip()
-
-        # Template string with {{ }} or { } - should be handled by _process_template_string
-        template_re = re.search(r'\{\{[^{}]+\}\}|\{[^{}]+\}', ref)
-        if template_re and not ref.startswith('{'):
-            return _process_template_string(ref, step_var, context_id)
-
-        # Direct reference to another step's output (not in a template)
-        if '.' in ref and not ref.startswith(("'", '"')):
-            step_id, output_path = ref.split('.', 1)
-
-            # Reference to environment variable
-            if step_id == 'env':
-                return f"os.environ.get('{output_path}', '')"
-            
-            # Reference to local variable
-            if step_id in ('var', 'local'):
-                return f"flow_variables.get('{output_path}', None)"
-            
-            # Only treat as a step reference if step_id is known
-            if not ((context_id and step_id == context_id) or step_id in step_var):
-                return repr(ref)  # It's just a literal string
-
-            # Reference to while-loop context variable
-            if context_id and step_id == context_id:
-                return f"{step_var[step_id]}['{output_path}']"
-
-            # Reference to regular step output
-            var_name = step_var.get(step_id, f"{step_id}_result")
-            return f"{var_name}['{output_path}']"
-
-        # Quoted string literal or non-reference
-        return repr(ref)
-
-    # Fallback: return as-is for non-string types (e.g. dicts, lists)
-    return repr(ref)
-
-
-def _generate_native_control(step: Dict[str, Any], indent: str, step_var: Dict[str, str], flow_steps: List[Dict[str, Any]]) -> List[str]:
+def _process_native_control(step: Dict[str, Any], indent: str, step_var: Dict[str, str], flow_steps: List[Dict[str, Any]]) -> List[str]:
     """
     Generate native Python code for control flow structures with variable support.
     
@@ -308,11 +307,11 @@ def _generate_native_control(step: Dict[str, Any], indent: str, step_var: Dict[s
         
         # Format condition expression properly
         if condition in condition_vars:
-            condition_expr = _process_reference(condition_vars[condition], step_var)
+            condition_expr = _process_reference(condition_vars[condition], step_var, context_id=sid)
         else:
             # Process the condition string, replacing variable references
             for var_key, var_val in condition_vars.items():
-                var_ref = _process_reference(var_val, step_var)
+                var_ref = _process_reference(var_val, step_var, context_id=sid)
                 # Replace the variable name with its reference
                 condition_expr = re.sub(r'\b' + re.escape(var_key) + r'\b', var_ref, condition_expr)
         
@@ -334,7 +333,7 @@ def _generate_native_control(step: Dict[str, Any], indent: str, step_var: Dict[s
         cases = inputs.get('cases', {})
         default = inputs.get('default')
         
-        value_ref = _process_reference(value_expr, step_var)
+        value_ref = _process_reference(value_expr, step_var, context_id=sid)
         
         code_lines.append(f"{indent}# Switch statement for step {sid}")
         code_lines.append(f"{indent}switch_value = {value_ref}")
@@ -380,7 +379,7 @@ def _generate_native_control(step: Dict[str, Any], indent: str, step_var: Dict[s
         code_lines.append(f"{indent}    'results_per_iteration': [],")
         code_lines.append(f"{indent}    'loop_ended_naturally': False")
         for var_key, var_val in condition_vars.items():
-            var_val_str = _process_reference(var_val, step_var)
+            var_val_str = _process_reference(var_val, step_var, context_id=sid)
             code_lines.append(f"{indent}    '{var_key}': {var_val_str},")
         code_lines.append(f"{indent}}}")
         
@@ -432,7 +431,7 @@ def _generate_native_control(step: Dict[str, Any], indent: str, step_var: Dict[s
                     arg_list = []
                     for input_name, input_val in sub_inputs.items():
                         # Standard input processing
-                        val_ref = _process_reference(input_val, step_var, sid)
+                        val_ref = _process_reference(input_val, step_var, context_id=sid)
                         arg_list.append(f"{input_name}={val_ref}")
                     
                     args_str = ", ".join(arg_list)
@@ -473,7 +472,7 @@ def _generate_native_control(step: Dict[str, Any], indent: str, step_var: Dict[s
         iterator_name = inputs.get('iterator_name', 'item')
         subflow = inputs.get('subflow', [])
         
-        list_ref = _process_reference(list_value, step_var)
+        list_ref = _process_reference(list_value, step_var, context_id=sid)
         
         code_lines.append(f"{indent}# For-each loop for step {sid}")
         code_lines.append(f"{indent}loop_list = {list_ref}")
@@ -495,22 +494,497 @@ def _generate_native_control(step: Dict[str, Any], indent: str, step_var: Dict[s
         code_lines.append(f"{indent}    {iterator_name}_result = {{'value': {iterator_name}_value, 'index': _index}}")
         code_lines.append(f"{indent}    iteration_results = {{'{iterator_name}': {iterator_name}_value, '_index': _index}}")
         
-        # Generate code for the subflow steps - similar to while_loop
-        # (implementation omitted for brevity but would follow the same pattern)
+        # Generate code for the subflow steps
+        if isinstance(subflow, list):
+            # Process list of step IDs or inline step definitions
+            for sub_step in subflow:
+                if isinstance(sub_step, str):
+                    # Reference to an existing step ID
+                    if sub_step in steps_by_id:
+                        sub_step_def = steps_by_id[sub_step]
+                        sub_id = sub_step
+                        sub_action = sub_step_def.get('action', '')
+                        sub_inputs = sub_step_def.get('inputs', {})
+                    else:
+                        continue  # Skip invalid reference
+                elif isinstance(sub_step, dict) and 'id' in sub_step:
+                    # Inline step definition
+                    sub_id = sub_step['id']
+                    sub_action = sub_step.get('action', '')
+                    sub_inputs = sub_step.get('inputs', {})
+                else:
+                    continue  # Skip invalid step
+                
+                sub_var = f"{sub_id}_result"
+                
+                code_lines.append(f"{indent}    # Subflow step: {sub_id}")
+                
+                # Generate call to the appropriate function based on action
+                if '.' in sub_action:
+                    integration, func = sub_action.split('.', 1)
+                    
+                    # Process inputs with special handling for iterator
+                    arg_list = []
+                    for input_name, input_val in sub_inputs.items():
+                        # Check for special iterator variable references
+                        if isinstance(input_val, str) and input_val == iterator_name:
+                            arg_list.append(f"{input_name}={iterator_name}_value")
+                        elif isinstance(input_val, str) and input_val == f"{iterator_name}.value":
+                            arg_list.append(f"{input_name}={iterator_name}_value")
+                        elif isinstance(input_val, str) and input_val == f"{iterator_name}.index":
+                            arg_list.append(f"{input_name}=_index")
+                        else:
+                            # Standard input processing
+                            val_ref = _process_reference(input_val, step_var, context_id=sid)
+                            arg_list.append(f"{input_name}={val_ref}")
+                    
+                    args_str = ", ".join(arg_list)
+                    
+                    # Use module_var based on integration and action name
+                    if integration == 'variables':
+                        module_var = 'variables_module'
+                    else:
+                        # Default to the function name or first part before underscore
+                        module_var = func.split('_')[0] if '_' in func else func
+                    
+                    code_lines.append(f"{indent}    {sub_var} = {module_var}.{func}({args_str})")
+                    code_lines.append(f"{indent}    iteration_results['{sub_id}'] = {sub_var}")
         
         code_lines.append(f"{indent}    {var_name}['results_per_iteration'].append(iteration_results)")
         code_lines.append(f"{indent}    {var_name}['iterations_completed'] += 1")
     
     elif control_type in ('try_catch', 'try'):
-        # Try-catch implementation (simplified)
+        try_block = inputs.get('subflow', inputs.get('try_body', []))
+        catch_block = inputs.get('on_error', inputs.get('catch_handler', []))
+        finally_block = inputs.get('finally_handler', [])
+        
         code_lines.append(f"{indent}# Try-catch block for step {sid}")
-        code_lines.append(f"{indent}try:")
-        code_lines.append(f"{indent}    # Try block implementation would go here")
-        code_lines.append(f"{indent}    pass")
-        code_lines.append(f"{indent}except Exception as e:")
-        code_lines.append(f"{indent}    # Catch block implementation would go here")
-        code_lines.append(f"{indent}    flow_variables['__error'] = {{'type': type(e).__name__, 'message': str(e)}}")
         code_lines.append(f"{indent}{var_name} = {{'success': True, 'error_details': None}}")
+        code_lines.append(f"{indent}try:")
+        
+        # Generate code for the try block
+        if isinstance(try_block, list):
+            # Process list of step IDs or inline step definitions
+            for sub_step in try_block:
+                if isinstance(sub_step, str):
+                    # Reference to an existing step ID
+                    if sub_step in steps_by_id:
+                        sub_step_def = steps_by_id[sub_step]
+                        sub_id = sub_step
+                        sub_action = sub_step_def.get('action', '')
+                        sub_inputs = sub_step_def.get('inputs', {})
+                    else:
+                        continue  # Skip invalid reference
+                elif isinstance(sub_step, dict) and 'id' in sub_step:
+                    # Inline step definition
+                    sub_id = sub_step['id']
+                    sub_action = sub_step.get('action', '')
+                    sub_inputs = sub_step.get('inputs', {})
+                else:
+                    continue  # Skip invalid step
+                
+                sub_var = f"{sub_id}_result"
+                
+                code_lines.append(f"{indent}    # Try block step: {sub_id}")
+                
+                # Generate call to the appropriate function based on action
+                if '.' in sub_action:
+                    integration, func = sub_action.split('.', 1)
+                    
+                    # Process inputs
+                    arg_list = []
+                    for input_name, input_val in sub_inputs.items():
+                        val_ref = _process_reference(input_val, step_var, context_id=sid)
+                        arg_list.append(f"{input_name}={val_ref}")
+                    
+                    args_str = ", ".join(arg_list)
+                    
+                    # Use module_var based on integration and action name
+                    if integration == 'variables':
+                        module_var = 'variables_module'
+                    else:
+                        # Default to the function name or first part before underscore
+                        module_var = func.split('_')[0] if '_' in func else func
+                    
+                    code_lines.append(f"{indent}    {sub_var} = {module_var}.{func}({args_str})")
+        else:
+            code_lines.append(f"{indent}    # No try block steps defined")
+            code_lines.append(f"{indent}    pass")
+        
+        # Generate catch block
+        code_lines.append(f"{indent}except Exception as e:")
+        code_lines.append(f"{indent}    {var_name}['success'] = False")
+        code_lines.append(f"{indent}    {var_name}['error_details'] = {{'type': type(e).__name__, 'message': str(e)}}")
+        code_lines.append(f"{indent}    flow_variables['__error'] = {{'type': type(e).__name__, 'message': str(e)}}")
+        
+        if isinstance(catch_block, list) and catch_block:
+            # Process catch block steps
+            for sub_step in catch_block:
+                if isinstance(sub_step, str):
+                    # Reference to an existing step ID
+                    if sub_step in steps_by_id:
+                        sub_step_def = steps_by_id[sub_step]
+                        sub_id = sub_step
+                        sub_action = sub_step_def.get('action', '')
+                        sub_inputs = sub_step_def.get('inputs', {})
+                    else:
+                        continue  # Skip invalid reference
+                elif isinstance(sub_step, dict) and 'id' in sub_step:
+                    # Inline step definition
+                    sub_id = sub_step['id']
+                    sub_action = sub_step.get('action', '')
+                    sub_inputs = sub_step.get('inputs', {})
+                else:
+                    continue  # Skip invalid step
+                
+                sub_var = f"{sub_id}_result"
+                
+                code_lines.append(f"{indent}    # Catch block step: {sub_id}")
+                
+                # Generate call to the appropriate function based on action
+                if '.' in sub_action:
+                    integration, func = sub_action.split('.', 1)
+                    
+                    # Process inputs
+                    arg_list = []
+                    for input_name, input_val in sub_inputs.items():
+                        val_ref = _process_reference(input_val, step_var, context_id=sid)
+                        arg_list.append(f"{input_name}={val_ref}")
+                    
+                    args_str = ", ".join(arg_list)
+                    
+                    # Use module_var based on integration and action name
+                    if integration == 'variables':
+                        module_var = 'variables_module'
+                    else:
+                        # Default to the function name or first part before underscore
+                        module_var = func.split('_')[0] if '_' in func else func
+                    
+                    code_lines.append(f"{indent}    {sub_var} = {module_var}.{func}({args_str})")
+        else:
+            code_lines.append(f"{indent}    # No catch block steps defined")
+            code_lines.append(f"{indent}    pass")
+        
+        # Generate finally block if provided
+        if isinstance(finally_block, list) and finally_block:
+            code_lines.append(f"{indent}finally:")
+            # Process finally block steps
+            for sub_step in finally_block:
+                if isinstance(sub_step, str):
+                    # Reference to an existing step ID
+                    if sub_step in steps_by_id:
+                        sub_step_def = steps_by_id[sub_step]
+                        sub_id = sub_step
+                        sub_action = sub_step_def.get('action', '')
+                        sub_inputs = sub_step_def.get('inputs', {})
+                    else:
+                        continue  # Skip invalid reference
+                elif isinstance(sub_step, dict) and 'id' in sub_step:
+                    # Inline step definition
+                    sub_id = sub_step['id']
+                    sub_action = sub_step.get('action', '')
+                    sub_inputs = sub_step.get('inputs', {})
+                else:
+                    continue  # Skip invalid step
+                
+                sub_var = f"{sub_id}_result"
+                
+                code_lines.append(f"{indent}    # Finally block step: {sub_id}")
+                
+                # Generate call to the appropriate function based on action
+                if '.' in sub_action:
+                    integration, func = sub_action.split('.', 1)
+                    
+                    # Process inputs
+                    arg_list = []
+                    for input_name, input_val in sub_inputs.items():
+                        val_ref = _process_reference(input_val, step_var, context_id=sid)
+                        arg_list.append(f"{input_name}={val_ref}")
+                    
+                    args_str = ", ".join(arg_list)
+                    
+                    # Use module_var based on integration and action name
+                    if integration == 'variables':
+                        module_var = 'variables_module'
+                    else:
+                        # Default to the function name or first part before underscore
+                        module_var = func.split('_')[0] if '_' in func else func
+                    
+                    code_lines.append(f"{indent}    {sub_var} = {module_var}.{func}({args_str})")
+            
+            # Cleanup flow variables
+            code_lines.append(f"{indent}    # Clean up error flow variable")
+            code_lines.append(f"{indent}    if '__error' in flow_variables:")
+            code_lines.append(f"{indent}        del flow_variables['__error']")
+    
+    elif control_type == 'parallel':
+        branches = inputs.get('branches', [])
+        wait_for_all = inputs.get('wait_for_all', True)
+        
+        code_lines.append(f"{indent}# Parallel execution for step {sid}")
+        code_lines.append(f"{indent}{var_name} = {{")
+        code_lines.append(f"{indent}    'branches_executed': 0,")
+        code_lines.append(f"{indent}    'outputs_per_branch': [],")
+        code_lines.append(f"{indent}    'wait_for_all': {wait_for_all}")
+        code_lines.append(f"{indent}}}")
+        
+        code_lines.append(f"{indent}# Note: This is a sequential simulation of parallel execution")
+        
+        # Process each branch
+        for i, branch in enumerate(branches):
+            code_lines.append(f"{indent}# Branch {i+1}")
+            code_lines.append(f"{indent}branch_{i}_results = {{}}")
+            
+            # Process steps in this branch
+            if isinstance(branch, list):
+                for branch_step in branch:
+                    if isinstance(branch_step, str):
+                        # Reference to an existing step ID
+                        if branch_step in steps_by_id:
+                            branch_step_def = steps_by_id[branch_step]
+                            branch_id = branch_step
+                            branch_action = branch_step_def.get('action', '')
+                            branch_inputs = branch_step_def.get('inputs', {})
+                        else:
+                            continue  # Skip invalid reference
+                    elif isinstance(branch_step, dict) and 'id' in branch_step:
+                        # Inline step definition
+                        branch_id = branch_step['id']
+                        branch_action = branch_step.get('action', '')
+                        branch_inputs = branch_step.get('inputs', {})
+                    else:
+                        continue  # Skip invalid step
+                    
+                    branch_var = f"{branch_id}_result"
+                    
+                    code_lines.append(f"{indent}# Branch {i+1} step: {branch_id}")
+                    
+                    # Generate call to the appropriate function based on action
+                    if '.' in branch_action:
+                        integration, func = branch_action.split('.', 1)
+                        
+                        # Process inputs
+                        arg_list = []
+                        for input_name, input_val in branch_inputs.items():
+                            val_ref = _process_reference(input_val, step_var, context_id=sid)
+                            arg_list.append(f"{input_name}={val_ref}")
+                        
+                        args_str = ", ".join(arg_list)
+                        
+                        # Use module_var based on integration and action name
+                        if integration == 'variables':
+                            module_var = 'variables_module'
+                        else:
+                            # Default to the function name or first part before underscore
+                            module_var = func.split('_')[0] if '_' in func else func
+                        
+                        code_lines.append(f"{indent}{branch_var} = {module_var}.{func}({args_str})")
+                        code_lines.append(f"{indent}branch_{i}_results['{branch_id}'] = {branch_var}")
+            
+            code_lines.append(f"{indent}{var_name}['outputs_per_branch'].append(branch_{i}_results)")
+            code_lines.append(f"{indent}{var_name}['branches_executed'] += 1")
+    
+    elif control_type == 'delay':
+        seconds = inputs.get('seconds', 0)
+        seconds_value = _process_reference(seconds, step_var, context_id=sid)
+        
+        code_lines.append(f"{indent}# Delay execution for step {sid}")
+        code_lines.append(f"{indent}import time")
+        code_lines.append(f"{indent}seconds_to_delay = {seconds_value}")
+        code_lines.append(f"{indent}if isinstance(seconds_to_delay, str):")
+        code_lines.append(f"{indent}    try:")
+        code_lines.append(f"{indent}        seconds_to_delay = float(seconds_to_delay)")
+        code_lines.append(f"{indent}    except (ValueError, TypeError):")
+        code_lines.append(f"{indent}        seconds_to_delay = 0")
+        code_lines.append(f"{indent}elif not isinstance(seconds_to_delay, (int, float)):")
+        code_lines.append(f"{indent}    seconds_to_delay = 0")
+        code_lines.append(f"{indent}if seconds_to_delay > 0:")
+        code_lines.append(f"{indent}    time.sleep(seconds_to_delay)")
+        code_lines.append(f"{indent}{var_name} = {{'delayed_for_seconds': seconds_to_delay, 'completed': True}}")
+    
+    elif control_type == 'wait_for':
+        event = inputs.get('event', inputs.get('until', 'None'))
+        timeout = inputs.get('timeout', '60s')
+        
+        event_value = _process_reference(event, step_var, context_id=sid)
+        timeout_value = _process_reference(timeout, step_var, context_id=sid)
+        
+        code_lines.append(f"{indent}# Wait for event/condition for step {sid}")
+        code_lines.append(f"{indent}import time")
+        code_lines.append(f"{indent}from datetime import datetime, timedelta")
+        code_lines.append(f"{indent}event_value = {event_value}")
+        code_lines.append(f"{indent}timeout_value = {timeout_value}")
+        code_lines.append(f"{indent}# Parse the event value to determine wait strategy")
+        code_lines.append(f"{indent}wait_seconds = 0")
+        code_lines.append(f"{indent}is_duration = False")
+        code_lines.append(f"{indent}# Check if it's a simple duration in seconds")
+        code_lines.append(f"{indent}if isinstance(event_value, (int, float)):")
+        code_lines.append(f"{indent}    wait_seconds = float(event_value)")
+        code_lines.append(f"{indent}    is_duration = True")
+        code_lines.append(f"{indent}# Check for duration strings like '5s', '10m', '1h'")
+        code_lines.append(f"{indent}elif isinstance(event_value, str):")
+        code_lines.append(f"{indent}    import re")
+        code_lines.append(f"{indent}    duration_match = re.fullmatch(r'(\\d+)([smh])', event_value)")
+        code_lines.append(f"{indent}    if duration_match:")
+        code_lines.append(f"{indent}        value, unit = int(duration_match.group(1)), duration_match.group(2)")
+        code_lines.append(f"{indent}        if unit == 's':")
+        code_lines.append(f"{indent}            wait_seconds = value")
+        code_lines.append(f"{indent}        elif unit == 'm':")
+        code_lines.append(f"{indent}            wait_seconds = value * 60")
+        code_lines.append(f"{indent}        elif unit == 'h':")
+        code_lines.append(f"{indent}            wait_seconds = value * 3600")
+        code_lines.append(f"{indent}        is_duration = True")
+        code_lines.append(f"{indent}    else:")
+        code_lines.append(f"{indent}        # Check if it's a timestamp")
+        code_lines.append(f"{indent}        try:")
+        code_lines.append(f"{indent}            target_time = datetime.fromisoformat(event_value.rstrip('Z'))")
+        code_lines.append(f"{indent}            current_time = datetime.now()")
+        code_lines.append(f"{indent}            if target_time > current_time:")
+        code_lines.append(f"{indent}                wait_seconds = (target_time - current_time).total_seconds()")
+        code_lines.append(f"{indent}                is_duration = True")
+        code_lines.append(f"{indent}        except (ValueError, AttributeError):")
+        code_lines.append(f"{indent}            pass")
+        code_lines.append(f"{indent}# Perform the wait")
+        code_lines.append(f"{indent}if is_duration and wait_seconds > 0:")
+        code_lines.append(f"{indent}    time.sleep(wait_seconds)")
+        code_lines.append(f"{indent}    {var_name} = {{'event_triggered': True, 'condition_met': True, 'waited_seconds': wait_seconds}}")
+        code_lines.append(f"{indent}else:")
+        code_lines.append(f"{indent}    # For non-duration events, simulate that the event occurred immediately")
+        code_lines.append(f"{indent}    {var_name} = {{'event_triggered': True, 'condition_met': True, 'simulated': True}}")
+    
+    elif control_type == 'retry':
+        action_step_id = inputs.get('action_step')
+        attempts = inputs.get('attempts', 3)
+        backoff_seconds = inputs.get('backoff_seconds', 0)
+        
+        attempts_value = _process_reference(attempts, step_var, context_id=sid)
+        backoff_value = _process_reference(backoff_seconds, step_var, context_id=sid)
+        
+        code_lines.append(f"{indent}# Retry logic for step {sid}")
+        code_lines.append(f"{indent}import time")
+        code_lines.append(f"{indent}{var_name} = {{")
+        code_lines.append(f"{indent}    'action_succeeded': False,")
+        code_lines.append(f"{indent}    'attempts_made': 0,")
+        code_lines.append(f"{indent}    'last_action_result': None")
+        code_lines.append(f"{indent}}}")
+        
+        # Make sure we can find the step to retry
+        code_lines.append(f"{indent}# Find the step to retry")
+        code_lines.append(f"{indent}if '{action_step_id}' in globals():")
+        code_lines.append(f"{indent}    action_step_id = '{action_step_id}'")
+        code_lines.append(f"{indent}else:")
+        code_lines.append(f"{indent}    raise ValueError(f\"Retry step '{sid}' references non-existent action step '{action_step_id}'\")")
+        
+        # Process the max attempts input
+        code_lines.append(f"{indent}# Set max attempts")
+        code_lines.append(f"{indent}max_retry_attempts = {attempts_value}")
+        code_lines.append(f"{indent}if not isinstance(max_retry_attempts, int) or max_retry_attempts < 1:")
+        code_lines.append(f"{indent}    max_retry_attempts = 3  # Default to 3 attempts")
+        
+        # Process the backoff seconds input
+        code_lines.append(f"{indent}# Set backoff seconds")
+        code_lines.append(f"{indent}retry_backoff_seconds = {backoff_value}")
+        code_lines.append(f"{indent}if not isinstance(retry_backoff_seconds, (int, float)) or retry_backoff_seconds < 0:")
+        code_lines.append(f"{indent}    retry_backoff_seconds = 0  # Default to no backoff")
+        
+        # Generate the retry loop
+        code_lines.append(f"{indent}# Execute retry loop")
+        code_lines.append(f"{indent}for _retry_attempt in range(1, max_retry_attempts + 1):")
+        code_lines.append(f"{indent}    {var_name}['attempts_made'] = _retry_attempt")
+        code_lines.append(f"{indent}    try:")
+        
+        # Look up the step to retry dynamically
+        if action_step_id in steps_by_id:
+            step_to_retry = steps_by_id[action_step_id]
+            retry_action = step_to_retry.get('action', '')
+            retry_inputs = step_to_retry.get('inputs', {})
+            
+            if '.' in retry_action:
+                integration, func = retry_action.split('.', 1)
+                
+                # Process inputs
+                arg_list = []
+                for input_name, input_val in retry_inputs.items():
+                    val_ref = _process_reference(input_val, step_var, context_id=sid)
+                    arg_list.append(f"{input_name}={val_ref}")
+                
+                args_str = ", ".join(arg_list)
+                
+                # Use module_var based on integration and action name
+                if integration == 'variables':
+                    module_var = 'variables_module'
+                else:
+                    # Default to the function name or first part before underscore
+                    module_var = func.split('_')[0] if '_' in func else func
+                
+                # Directly generate the function call code
+                code_lines.append(f"{indent}        {action_step_id}_result = {module_var}.{func}({args_str})")
+                code_lines.append(f"{indent}        {var_name}['last_action_result'] = {action_step_id}_result")
+                code_lines.append(f"{indent}        {var_name}['action_succeeded'] = True")
+                code_lines.append(f"{indent}        break  # Success - exit retry loop")
+        else:
+            # Generic retry code if we don't know the step at generation time
+            code_lines.append(f"{indent}        # Execute the action step dynamically")
+            code_lines.append(f"{indent}        # This placeholder would be replaced with actual retry logic")
+            code_lines.append(f"{indent}        {var_name}['last_action_result'] = None")
+            code_lines.append(f"{indent}        {var_name}['action_succeeded'] = False")
+            code_lines.append(f"{indent}        break")
+        
+        # Handle retry exception and backoff
+        code_lines.append(f"{indent}    except Exception as e:")
+        code_lines.append(f"{indent}        # Retry failed - handle error")
+        code_lines.append(f"{indent}        {var_name}['last_exception'] = {{'type': type(e).__name__, 'message': str(e)}}")
+        code_lines.append(f"{indent}        if _retry_attempt < max_retry_attempts:")
+        code_lines.append(f"{indent}            # Not the last attempt - sleep before retrying")
+        code_lines.append(f"{indent}            if retry_backoff_seconds > 0:")
+        code_lines.append(f"{indent}                time.sleep(retry_backoff_seconds)")
+        code_lines.append(f"{indent}        else:")
+        code_lines.append(f"{indent}            # Last attempt failed - update result")
+        code_lines.append(f"{indent}            {var_name}['action_succeeded'] = False")
+    
+    elif control_type == 'subflow':
+        flow_id = inputs.get('flow_id', inputs.get('flow_ref', 'unknown_flow'))
+        subflow_inputs = inputs.get('inputs', {})
+        
+        flow_id_value = _process_reference(flow_id, step_var, context_id=sid)
+        
+        code_lines.append(f"{indent}# Execute subflow for step {sid}")
+        code_lines.append(f"{indent}from pathlib import Path")
+        code_lines.append(f"{indent}# Prepare subflow inputs")
+        code_lines.append(f"{indent}subflow_inputs = {{}}")
+        
+        # Process subflow inputs
+        for input_name, input_val in subflow_inputs.items():
+            input_val_str = _process_reference(input_val, step_var, context_id=sid)
+            code_lines.append(f"{indent}subflow_inputs['{input_name}'] = {input_val_str}")
+        
+        # Add flow variables to inputs
+        code_lines.append(f"{indent}# Pass current flow variables to subflow")
+        code_lines.append(f"{indent}subflow_inputs.update(flow_variables)")
+        
+        # Run subflow
+        code_lines.append(f"{indent}subflow_path = Path({flow_id_value})")
+        code_lines.append(f"{indent}if not subflow_path.suffix:")
+        code_lines.append(f"{indent}    subflow_path = subflow_path.with_suffix('.yaml')")
+        code_lines.append(f"{indent}# This is a placeholder for actual subflow execution")
+        code_lines.append(f"{indent}print(f\"Executing subflow: {{subflow_path}} with inputs: {{subflow_inputs}}\")")
+        code_lines.append(f"{indent}{var_name} = {{")
+        code_lines.append(f"{indent}    'subflow_id': {flow_id_value},")
+        code_lines.append(f"{indent}    'result': {{'status': 'simulated'}},")
+        code_lines.append(f"{indent}    'terminated_by_subflow': False")
+        code_lines.append(f"{indent}}}")
+    
+    elif control_type == 'terminate':
+        message = inputs.get('message', f"Flow terminated by step '{sid}'")
+        message_value = _process_reference(message, step_var, context_id=sid)
+        
+        code_lines.append(f"{indent}# Terminate flow execution for step {sid}")
+        code_lines.append(f"{indent}{var_name} = {{")
+        code_lines.append(f"{indent}    'terminated': True,")
+        code_lines.append(f"{indent}    'message': {message_value}")
+        code_lines.append(f"{indent}}}")
+        code_lines.append(f"{indent}print(f\"Flow terminated by step '{sid}': {{{{message}}}}\")")
+        code_lines.append(f"{indent}# Note: In a real flow engine, execution would stop here")
     
     else:
         # For other control structures, use a function call approach
@@ -522,7 +996,7 @@ def _generate_native_control(step: Dict[str, Any], indent: str, step_var: Dict[s
         code_lines.append(f"{indent}{var_name} = {module_var}.{control_type}(")
         
         for i, (name, val) in enumerate(inputs.items()):
-            formatted_val = _process_reference(val, step_var)
+            formatted_val = _process_reference(val, step_var, context_id=sid)
             if i < len(inputs) - 1:
                 code_lines.append(f"{indent}    {name}={formatted_val},")
             else:
@@ -549,6 +1023,18 @@ def generate_python(flow: Dict[str, Any], registry=None, use_native_control=True
     """
     steps = flow.get('steps', [])
     modules_to_import = {}  # Maps integration_name -> set of modules to import
+    
+    # --- NEW: remember every variable that can legitimately be read later ------------
+    global flow_variable_names
+    flow_variable_names.clear()  # Clear any previous values
+    # any step that *creates* a flow‐variable
+    for s in steps:
+        if s.get("action") in ("variables.set_local", "variables.set", "variables.get_local", "variables.get"):
+            name = s.get("inputs", {}).get("name")
+            if name:
+                flow_variable_names.add(name)
+    # ------------------------------------------------------------------------------
+    
     action_to_module = {}   # Maps action -> {module_name, module_var} for call resolution
     code_lines = []
     env_vars = set()  # Track all environment variables used in the flow
@@ -1005,12 +1491,12 @@ def generate_python(flow: Dict[str, Any], registry=None, use_native_control=True
                 if default is None:
                     code_lines.append(f"{indent}{var_name} = {{'value': flow_variables.get({repr(var_key)}, None)}}")
                 else:
-                    default_val = _process_reference(default, step_var)
+                    default_val = _process_reference(default, step_var, context_id=None)
                     code_lines.append(f"{indent}{var_name} = {{'value': flow_variables.get({repr(var_key)}, {default_val})}}")
             
             elif func == 'set_local':
                 var_key = inputs.get('name', '')
-                value = _process_reference(inputs.get('value'), step_var)
+                value = _process_reference(inputs.get('value'), step_var, context_id=None)
                 code_lines.append(f"{indent}flow_variables[{repr(var_key)}] = {value}")
                 code_lines.append(f"{indent}{var_name} = {{'value': {value}}}")
             
@@ -1021,7 +1507,7 @@ def generate_python(flow: Dict[str, Any], registry=None, use_native_control=True
                 if default is None:
                     code_lines.append(f"{indent}{var_name} = {{'value': os.environ.get({repr(env_key)}, '')}}")
                 else:
-                    default_val = _process_reference(default, step_var)
+                    default_val = _process_reference(default, step_var, context_id=None)
                     code_lines.append(f"{indent}{var_name} = {{'value': os.environ.get({repr(env_key)}, {default_val})}}")
             
             elif func == 'get':
@@ -1036,7 +1522,7 @@ def generate_python(flow: Dict[str, Any], registry=None, use_native_control=True
                     code_lines.append(f"{indent}else:")
                     code_lines.append(f"{indent}    {var_name} = {{'value': os.environ.get({repr(var_key)}, '')}}")
                 else:
-                    default_val = _process_reference(default, step_var)
+                    default_val = _process_reference(default, step_var, context_id=None)
                     code_lines.append(f"{indent}# Get variable from flow_variables or environment with default")
                     code_lines.append(f"{indent}if {repr(var_key)} in flow_variables:")
                     code_lines.append(f"{indent}    {var_name} = {{'value': flow_variables.get({repr(var_key)})}}")
@@ -1046,7 +1532,7 @@ def generate_python(flow: Dict[str, Any], registry=None, use_native_control=True
             elif func == 'set':
                 # Legacy set - always sets to flow variables
                 var_key = inputs.get('name', '')
-                value = _process_reference(inputs.get('value'), step_var)
+                value = _process_reference(inputs.get('value'), step_var, context_id=None)
                 code_lines.append(f"{indent}flow_variables[{repr(var_key)}] = {value}")
                 code_lines.append(f"{indent}{var_name} = {{'value': {value}}}")
             
@@ -1085,7 +1571,7 @@ def generate_python(flow: Dict[str, Any], registry=None, use_native_control=True
                 # Build argument list with variable support
                 arg_list = []
                 for name, val in inputs.items():
-                    formatted_val = _process_reference(val, step_var)
+                    formatted_val = _process_reference(val, step_var, context_id=None)
                     arg_list.append(f"{name}={formatted_val}")
                 
                 args = ", ".join(arg_list)

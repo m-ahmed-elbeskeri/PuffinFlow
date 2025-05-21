@@ -1,0 +1,201 @@
+name: openai
+description: "OpenAI integration for using OpenAI models like GPT-4, GPT-3.5, DALL-E, and more"
+version: "1.0.0"
+author: "FlowForge"
+modules:
+  - openai
+  - chat
+  - embedding
+  - image
+
+actions:
+  chat_completion:
+    description: "Generate a chat completion using OpenAI's chat models (e.g., GPT-4, GPT-3.5)"
+    implementation: "chat.chat_completion"
+    inputs:
+      prompt:
+        type: string
+        required: true
+        description: "The prompt to send to the model"
+      system_message:
+        type: string
+        required: false
+        description: "Optional system message to set context for the chat"
+      model:
+        type: string
+        required: false
+        default: "gpt-4o"
+        description: "The model to use for the completion (e.g., gpt-4o, gpt-3.5-turbo)"
+      temperature:
+        type: number
+        required: false
+        default: 0.7
+        description: "Temperature for sampling (0-2), lower is more deterministic"
+      max_tokens:
+        type: integer
+        required: false
+        default: 1024
+        description: "Maximum number of tokens to generate"
+      top_p:
+        type: number
+        required: false
+        default: 1.0
+        description: "Top-p sampling value (0-1)"
+      frequency_penalty:
+        type: number
+        required: false
+        default: 0.0
+        description: "Frequency penalty (-2 to 2)"
+      presence_penalty:
+        type: number
+        required: false
+        default: 0.0
+        description: "Presence penalty (-2 to 2)"
+      stop:
+        type: array
+        required: false
+        description: "Sequences where the API will stop generating further tokens"
+      conversation_history:
+        type: array
+        required: false
+        description: "Previous conversation messages in the format [{role: 'user', content: '...'}, {role: 'assistant', content: '...'}]"
+    outputs:
+      response:
+        type: string
+        description: "The assistant's response text"
+      completion_id:
+        type: string
+        description: "Unique ID for the completion"
+      model:
+        type: string
+        description: "The model used for the completion"
+      usage:
+        type: object
+        description: "Token usage information"
+      raw_response:
+        type: object
+        description: "The complete raw response from the API"
+
+  text_completion:
+    description: "Generate a text completion using OpenAI's legacy completions endpoint"
+    implementation: "openai.text_completion"
+    inputs:
+      prompt:
+        type: string
+        required: true
+        description: "The prompt to send to the model"
+      model:
+        type: string
+        required: false
+        default: "gpt-3.5-turbo-instruct"
+        description: "The model to use for the completion"
+      temperature:
+        type: number
+        required: false
+        default: 0.7
+        description: "Temperature for sampling (0-2), lower is more deterministic"
+      max_tokens:
+        type: integer
+        required: false
+        default: 256
+        description: "Maximum number of tokens to generate"
+      top_p:
+        type: number
+        required: false
+        default: 1.0
+        description: "Top-p sampling value (0-1)"
+      frequency_penalty:
+        type: number
+        required: false
+        default: 0.0
+        description: "Frequency penalty (-2 to 2)"
+      presence_penalty:
+        type: number
+        required: false
+        default: 0.0
+        description: "Presence penalty (-2 to 2)"
+      stop:
+        type: array
+        required: false
+        description: "Sequences where the API will stop generating further tokens"
+    outputs:
+      text:
+        type: string
+        description: "The generated text"
+      completion_id:
+        type: string
+        description: "Unique ID for the completion"
+      model:
+        type: string 
+        description: "The model used for the completion"
+      usage:
+        type: object
+        description: "Token usage information"
+
+  generate_embedding:
+    description: "Generate embeddings for text using OpenAI's embedding models"
+    implementation: "embedding.generate_embedding"
+    inputs:
+      text:
+        type: string
+        required: true
+        description: "The text to generate embeddings for"
+      model:
+        type: string
+        required: false
+        default: "text-embedding-3-small"
+        description: "The model to use for embeddings (e.g., text-embedding-3-small, text-embedding-3-large)"
+    outputs:
+      embedding:
+        type: array
+        description: "The embedding vector"
+      usage:
+        type: object
+        description: "Token usage information"
+      model:
+        type: string
+        description: "The model used for embedding"
+
+  generate_image:
+    description: "Generate an image using DALL-E"
+    implementation: "image.generate_image"
+    inputs:
+      prompt:
+        type: string
+        required: true
+        description: "The text prompt to generate an image from"
+      model:
+        type: string
+        required: false
+        default: "dall-e-3"
+        description: "The model to use (e.g., dall-e-3, dall-e-2)"
+      size:
+        type: string
+        required: false
+        default: "1024x1024"
+        description: "Image size (e.g., 1024x1024, 512x512)"
+      quality:
+        type: string
+        required: false
+        default: "standard"
+        description: "Quality of the image (standard or hd for DALL-E 3)"
+      style:
+        type: string
+        required: false
+        default: "vivid"
+        description: "Style of the image (vivid or natural for DALL-E 3)"
+      n:
+        type: integer
+        required: false
+        default: 1
+        description: "Number of images to generate"
+    outputs:
+      image_url:
+        type: string
+        description: "URL of the generated image"
+      image_urls:
+        type: array
+        description: "URLs of generated images if n > 1"
+      revised_prompt:
+        type: string
+        description: "The prompt after model's revision (DALL-E 3)"

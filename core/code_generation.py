@@ -87,35 +87,162 @@ def create_init_file(directory: Path) -> None:
     """Create an __init__.py file in the specified directory."""
     (directory / "__init__.py").write_text('"""FlowForge generated package."""\n')
 
-def create_requirements_file(project_dir: Path) -> None:
-    """Create a requirements.txt file in the project directory."""
-    requirements = [
+def create_requirements_file(project_dir: Path, flow: Dict[str, Any] = None, registry = None) -> None:
+    """
+    Create a requirements.txt file in the project directory including dependencies 
+    from all integrations used in the flow.
+    
+    Args:
+        project_dir: Directory to write requirements.txt
+        flow: Flow definition to scan for used integrations
+        registry: Registry instance to locate integration directories
+    """
+    # Base requirements
+    requirements = {
         "pyyaml>=6.0",
         "requests>=2.25.0"
-    ]
+    }
     
-    (project_dir / "requirements.txt").write_text("\n".join(requirements) + "\n")
+    # Only process integrations if flow and registry are provided
+    if flow and registry:
+        # Find all integrations used in the flow
+        used_integrations = set()
+        for step in flow.get("steps", []):
+            if "action" in step and "." in step["action"]:
+                integration, _ = step["action"].split(".", 1)
+                used_integrations.add(integration)
+        
+        # Find integrations directories
+        integrations_dir = None
+        
+        # Try to find integrations directory from registry
+        if hasattr(registry, 'integrations_dir'):
+            integrations_dir = Path(registry.integrations_dir)
+        else:
+            # Try to locate it relative to registry's module
+            module_path = Path(sys.modules.get(registry.__module__, __name__).__file__).parent
+            candidate_dirs = [
+                module_path.parent / 'integrations',
+                module_path / 'integrations',
+                Path.cwd() / 'integrations'
+            ]
+            
+            for candidate in candidate_dirs:
+                if candidate.exists() and candidate.is_dir():
+                    integrations_dir = candidate
+                    break
+        
+        # Scan each used integration for requirements.txt
+        if integrations_dir:
+            for integration in used_integrations:
+                integration_dir = integrations_dir / integration
+                req_file = integration_dir / "requirements.txt"
+                
+                if req_file.exists():
+                    try:
+                        # Read and parse requirements from file
+                        with open(req_file, 'r') as f:
+                            for line in f:
+                                line = line.strip()
+                                # Skip comments and empty lines
+                                if line and not line.startswith('#'):
+                                    requirements.add(line)
+                        print(f"Added requirements from {integration} integration")
+                    except Exception as e:
+                        print(f"Error reading requirements from {integration}: {str(e)}")
+    
+    # Sort requirements alphabetically
+    sorted_requirements = sorted(requirements)
+    
+    # Write to file
+    (project_dir / "requirements.txt").write_text("\n".join(sorted_requirements) + "\n")
+
 
 def create_setup_file(project_dir: Path, package_name: str) -> None:
-    """Create a setup.py file in the project directory."""
-    (project_dir / "setup.py").write_text(f"""from setuptools import setup, find_packages
+    """
+    Create a setup.py file in the project directory with all required dependencies.
+    
+    Args:
+        project_dir: Path to the project directory
+        package_name: Name of the package
+    """
+    # Read requirements from requirements.txt
+    requirements = []
+    req_file = project_dir / "requirements.txt"
+    if req_file.exists():
+        try:
+            with open(req_file, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#'):
+                        requirements.append(f"        \"{line}\",")
+        except Exception as e:
+            print(f"Warning: Error reading requirements.txt: {str(e)}")
+            # Fallback to basic requirements
+            requirements = [
+                "        \"pyyaml>=6.0\",",
+                "        \"requests>=2.25.0\","
+            ]
+    else:
+        # Fallback to basic requirements
+        requirements = [
+            "        \"pyyaml>=6.0\",",
+            "        \"requests>=2.25.0\","
+        ]
+    
+    # Generate setup.py content
+    setup_content = f"""from setuptools import setup, find_packages
 
 setup(
     name="{package_name}",
     version="0.1.0",
+    description="FlowForge generated project for {package_name}",
+    author="FlowForge",
     packages=find_packages(),
+    python_requires=">=3.7",
     install_requires=[
-        "pyyaml>=6.0",
-        "requests>=2.25.0",
+{chr(10).join(requirements)}
     ],
     entry_points={{
         'console_scripts': [
             '{package_name}=workflow.run:main',
         ],
     }},
+    classifiers=[
+        "Programming Language :: Python :: 3",
+        "License :: OSI Approved :: MIT License",
+        "Operating System :: OS Independent",
+    ],
 )
-""")
+"""
+    
+    try:
+        (project_dir / "setup.py").write_text(setup_content)
+        print(f"Generated setup.py with {len(requirements)} dependencies")
+    except Exception as e:
+        print(f"Error writing setup.py: {str(e)}")
+        # Try to create a minimal setup.py if the full one fails
+        try:
+            minimal_setup = f"""from setuptools import setup, find_packages
 
+setup(
+    name="{package_name}",
+    version="0.1.0",
+    packages=find_packages(),
+    install_requires=["pyyaml>=6.0", "requests>=2.25.0"],
+    entry_points={{
+        'console_scripts': [
+            '{package_name}=workflow.run:main',
+        ],
+    }},
+)
+"""
+            (project_dir / "setup.py").write_text(minimal_setup)
+            print("Generated minimal setup.py due to error with full version")
+        except Exception as e2:
+            print(f"Failed to create even minimal setup.py: {str(e2)}")
+            raise RuntimeError(f"Failed to generate project setup.py: {str(e)}")
+        
 def create_run_script(project_dir: Path, package_name: str) -> None:
     """Create a run.sh script for easy execution."""
     run_script_content = f"""#!/bin/bash

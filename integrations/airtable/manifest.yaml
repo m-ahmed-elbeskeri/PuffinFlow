@@ -1,0 +1,222 @@
+name: airtable
+description: Integration with Airtable for creating, reading, updating and deleting records
+version: 0.1.0
+author: FlowForge
+primary_module: airtable
+
+# Define authentication
+auth:
+  type: api_key
+  fields:
+    - name: AIRTABLE_API_KEY
+      description: Your Airtable API key
+      required: true
+
+# Define the modules
+modules:
+  - airtable
+  - triggers
+
+# Define the actions
+actions:
+  list_records:
+    description: Get records from an Airtable table
+    implementation: airtable.list_records
+    inputs:
+      base_id:
+        type: string
+        description: The ID of the Airtable base
+        required: true
+      table_name:
+        type: string
+        description: The name of the table
+        required: true
+      view:
+        type: string
+        description: The view to use
+        required: false
+      max_records:
+        type: number
+        description: Maximum number of records to return
+        required: false
+        default: 100
+      formula:
+        type: string
+        description: Formula to filter records
+        required: false
+      fields:
+        type: array
+        description: Array of field names to return
+        required: false
+    outputs:
+      records:
+        type: array
+        description: Array of records from the table
+      
+  get_record:
+    description: Get a specific record from an Airtable table
+    implementation: airtable.get_record
+    inputs:
+      base_id:
+        type: string
+        description: The ID of the Airtable base
+        required: true
+      table_name:
+        type: string
+        description: The name of the table
+        required: true
+      record_id:
+        type: string
+        description: The ID of the record to retrieve
+        required: true
+    outputs:
+      record:
+        type: object
+        description: The retrieved record
+      
+  create_record:
+    description: Create a new record in an Airtable table
+    implementation: airtable.create_record
+    inputs:
+      base_id:
+        type: string
+        description: The ID of the Airtable base
+        required: true
+      table_name:
+        type: string
+        description: The name of the table
+        required: true
+      fields:
+        type: object
+        description: Field values for the new record
+        required: true
+    outputs:
+      record:
+        type: object
+        description: The created record
+      
+  update_record:
+    description: Update an existing record in an Airtable table
+    implementation: airtable.update_record
+    inputs:
+      base_id:
+        type: string
+        description: The ID of the Airtable base
+        required: true
+      table_name:
+        type: string
+        description: The name of the table
+        required: true
+      record_id:
+        type: string
+        description: The ID of the record to update
+        required: true
+      fields:
+        type: object
+        description: New field values for the record
+        required: true
+    outputs:
+      record:
+        type: object
+        description: The updated record
+      
+  delete_record:
+    description: Delete a record from an Airtable table
+    implementation: airtable.delete_record
+    inputs:
+      base_id:
+        type: string
+        description: The ID of the Airtable base
+        required: true
+      table_name:
+        type: string
+        description: The name of the table
+        required: true
+      record_id:
+        type: string
+        description: The ID of the record to delete
+        required: true
+    outputs:
+      success:
+        type: boolean
+        description: Whether the deletion was successful
+      deleted_id:
+        type: string
+        description: The ID of the deleted record
+        
+  create_or_update_record:
+    description: Create a record or update it if it exists based on a field value match
+    implementation: airtable.create_or_update_record
+    inputs:
+      base_id:
+        type: string
+        description: The ID of the Airtable base
+        required: true
+      table_name:
+        type: string
+        description: The name of the table
+        required: true
+      match_field:
+        type: string
+        description: The field to match on
+        required: true
+      match_value:
+        type: string
+        description: The value to match
+        required: true
+      fields:
+        type: object
+        description: Field values for the record
+        required: true
+    outputs:
+      record:
+        type: object
+        description: The created or updated record
+      operation:
+        type: string
+        description: Whether the record was created or updated
+
+  # Triggers
+  trigger_new_record:
+    description: Trigger when a new record is created in an Airtable table
+    implementation: triggers.new_record
+    inputs:
+      base_id:
+        type: string
+        description: The ID of the Airtable base
+        required: true
+      table_name:
+        type: string
+        description: The name of the table
+        required: true
+      polling_interval:
+        type: number
+        description: Polling interval in seconds
+        required: false
+        default: 300
+    outputs:
+      record:
+        type: object
+        description: The new record
+        
+  trigger_updated_record:
+    description: Trigger when a record is updated in an Airtable table
+    implementation: triggers.updated_record
+    inputs:
+      base_id:
+        type: string
+        description: The ID of the Airtable base
+        required: true
+      table_name:
+        type: string
+        description: The name of the table
+        required: true
+      polling_interval:
+        type: number
+        description: Polling interval in seconds
+        required: false
+        default: 300
+    outputs:
+      record:
+        type: object
+        description: The updated record

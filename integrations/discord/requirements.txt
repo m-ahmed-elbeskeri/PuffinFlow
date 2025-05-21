@@ -1,0 +1,4 @@
+discord.py>=2.2.3
+aiohttp>=3.8.4
+asyncio>=3.4.3
+python-dotenv>=1.0.0

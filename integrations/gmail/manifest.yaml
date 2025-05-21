@@ -1,0 +1,192 @@
+name: gmail
+description: "Integration for Gmail email operations with OAuth authentication and triggers"
+version: "0.1.0"
+author: "FlowForge"
+modules:
+  - gmail
+  - auth
+  - trigger
+primary_module: gmail
+
+actions:
+  send_email:
+    description: "Send an email through Gmail"
+    implementation: "gmail.send_email"
+    inputs:
+      to:
+        type: "string"
+        description: "Email recipient(s), comma-separated for multiple"
+        required: true
+      subject:
+        type: "string"
+        description: "Email subject line"
+        required: true
+      body:
+        type: "string"
+        description: "Email body content"
+        required: true
+      cc:
+        type: "string"
+        description: "CC recipient(s), comma-separated for multiple"
+      bcc:
+        type: "string"
+        description: "BCC recipient(s), comma-separated for multiple"
+      html:
+        type: "boolean"
+        description: "Whether to send as HTML email (default: false)"
+        default: false
+      attachments:
+        type: "array"
+        description: "List of file paths to attach"
+    outputs:
+      message_id:
+        type: "string"
+        description: "ID of the sent message"
+      success:
+        type: "boolean"
+        description: "Whether the email was sent successfully"
+      status:
+        type: "string"
+        description: "Status message"
+  
+  get_emails:
+    description: "Retrieve emails from Gmail"
+    implementation: "gmail.get_emails"
+    inputs:
+      query:
+        type: "string"
+        description: "Gmail search query"
+        default: "is:unread"
+      max_results:
+        type: "number"
+        description: "Maximum number of emails to retrieve"
+        default: 10
+      include_attachments:
+        type: "boolean"
+        description: "Whether to include attachment information"
+        default: false
+      include_body:
+        type: "boolean"
+        description: "Whether to include the email body"
+        default: true
+    outputs:
+      emails:
+        type: "array"
+        description: "List of retrieved emails with metadata"
+      count:
+        type: "number"
+        description: "Number of emails retrieved"
+  
+  mark_as_read:
+    description: "Mark emails as read"
+    implementation: "gmail.mark_as_read"
+    inputs:
+      message_ids:
+        type: "array"
+        description: "List of message IDs to mark as read"
+        required: true
+    outputs:
+      success:
+        type: "boolean"
+        description: "Whether operation was successful"
+      modified_count:
+        type: "number"
+        description: "Number of messages modified"
+  
+  setup_oauth:
+    description: "Set up OAuth authentication for Gmail"
+    implementation: "auth.setup_oauth"
+    inputs:
+      client_id:
+        type: "string"
+        description: "OAuth client ID from Google Cloud Platform"
+        required: true
+      client_secret:
+        type: "string"
+        description: "OAuth client secret from Google Cloud Platform"
+        required: true
+      redirect_uri:
+        type: "string"
+        description: "OAuth redirect URI"
+        default: "http://localhost:8080"
+      scopes:
+        type: "array"
+        description: "List of OAuth scopes required"
+        default: ["https://mail.google.com/"]
+    outputs:
+      auth_url:
+        type: "string"
+        description: "URL to open for user authentication"
+      success:
+        type: "boolean"
+        description: "Whether setup was successful"
+  
+  complete_oauth:
+    description: "Complete OAuth flow with authorization code"
+    implementation: "auth.complete_oauth"
+    inputs:
+      auth_code:
+        type: "string"
+        description: "Authorization code from OAuth redirect"
+        required: true
+    outputs:
+      success:
+        type: "boolean"
+        description: "Whether authentication was successful"
+      token_info:
+        type: "object"
+        description: "Token information (access token, refresh token, etc.)"
+  
+  create_trigger:
+    description: "Create a Gmail trigger for incoming emails"
+    implementation: "trigger.create_trigger"
+    inputs:
+      query:
+        type: "string"
+        description: "Gmail search query for emails to trigger on"
+        default: "is:unread"
+      check_interval:
+        type: "number"
+        description: "Interval in seconds to check for new emails"
+        default: 60
+      webhook_url:
+        type: "string"
+        description: "Webhook URL to call when new emails are detected"
+      max_results:
+        type: "number"
+        description: "Maximum number of emails to process per check"
+        default: 10
+    outputs:
+      trigger_id:
+        type: "string"
+        description: "ID of the created trigger"
+      status:
+        type: "string"
+        description: "Status of the trigger creation"
+        
+  delete_trigger:
+    description: "Delete a Gmail trigger"
+    implementation: "trigger.delete_trigger"
+    inputs:
+      trigger_id:
+        type: "string"
+        description: "ID of the trigger to delete"
+        required: true
+    outputs:
+      success:
+        type: "boolean"
+        description: "Whether deletion was successful"
+      message:
+        type: "string"
+        description: "Status message"
+        
+  list_triggers:
+    description: "List all Gmail triggers"
+    implementation: "trigger.list_triggers"
+    outputs:
+      triggers:
+        type: "object"
+        description: "Dictionary of all triggers"
+      count:
+        type: "number"
+        description: "Number of triggers"
