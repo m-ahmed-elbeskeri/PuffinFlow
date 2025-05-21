@@ -38,6 +38,13 @@ class FlowEngine:
         self.flow_variables: Dict[str, Any] = {}  # Local flow-scoped variables
         self.environment = os.environ.copy()      # Environment variables 
         
+        # Add secrets manager
+        from packages.core.secrets import get_secret, get_workspace_secret
+        self.secrets_manager = {
+            "get_secret": get_secret,
+            "get_workspace_secret": get_workspace_secret
+        }
+        
         # Initialize flow variables from parent context if provided
         if parent_context:
             self.flow_variables.update(parent_context)
@@ -677,6 +684,20 @@ class FlowEngine:
                 value = processed_inputs.get('value')
                 self.flow_variables[var_name] = value
                 return {"value": value}
+                
+            # Add support for secrets
+            elif var_action == 'get_secret':
+                secret_name = processed_inputs.get('name')
+                default = processed_inputs.get('default')
+                value = self.secrets_manager["get_secret"](secret_name, default)
+                return {"value": value}
+                
+            elif var_action == 'get_workspace_secret':
+                workspace_id = processed_inputs.get('workspace_id')
+                secret_name = processed_inputs.get('name')
+                default = processed_inputs.get('default')
+                value = self.secrets_manager["get_workspace_secret"](workspace_id, secret_name, default)
+                return {"value": value}
 
         try:
             result = self.registry.execute_action(action, **processed_inputs)
@@ -941,3 +962,20 @@ class FlowEngine:
     def get_env_variable(self, name, default=""):
         """Get an environment variable."""
         return self.environment.get(name, default)
+
+def parse_duration(duration_str: str) -> Optional[timedelta]:
+    """Parses a simple duration string (e.g., "5s", "10m", "1h") into a timedelta."""
+    if not isinstance(duration_str, str):
+        return None
+    match = re.fullmatch(r"(\d+)([smh])", duration_str.lower())
+    if not match:
+        return None
+
+    value, unit = int(match.group(1)), match.group(2)
+    if unit == 's':
+        return timedelta(seconds=value)
+    elif unit == 'm':
+        return timedelta(minutes=value)
+    elif unit == 'h':
+        return timedelta(hours=value)
+    return None

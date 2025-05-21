@@ -14,8 +14,15 @@ COPY integrations /app/integrations
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
 
-# Create flows directory
-RUN mkdir -p /app/flows
+# Create flows directory and secrets directory
+RUN mkdir -p /app/flows /secrets
+
+# Configure secrets
+ENV SECRETS_FILE=/secrets/secrets.json
+
+# Volume for secrets and flows
+VOLUME /secrets
+VOLUME /app/flows
 
 # Entry point
 CMD ["uvicorn", "flowforge.apps.server.api:app", "--host", "0.0.0.0", "--port", "8000"]

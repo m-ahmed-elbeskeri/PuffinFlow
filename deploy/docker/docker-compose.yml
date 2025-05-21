@@ -9,9 +9,11 @@ services:
       - "8000:8000"
     volumes:
       - ../../flows:/app/flows
+      - ../../secrets:/secrets
     environment:
       - FLOWFORGE_DEBUG=0
       - FLOWFORGE_FLOWS_DIR=/app/flows
+      - SECRETS_FILE=/secrets/secrets.json
     networks:
       - flowforge
 
@@ -21,9 +23,11 @@ services:
       dockerfile: deploy/docker/Dockerfile.worker
     volumes:
       - ../../flows:/app/flows
+      - ../../secrets:/secrets
     environment:
       - FLOWFORGE_DEBUG=0
       - FLOWFORGE_FLOWS_DIR=/app/flows
+      - SECRETS_FILE=/secrets/secrets.json
     networks:
       - flowforge
     depends_on:

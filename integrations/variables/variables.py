@@ -49,6 +49,37 @@ def get_env(name, default=""):
     # FlowEngine._execute_step_action will override it to use its environment copy
     return {"value": os.environ.get(name, default)}
 
+def get_secret(name, default=None):
+    """
+    Get a secret from the secrets manager.
+    
+    Args:
+        name: Secret name
+        default: Default value if secret doesn't exist
+        
+    Returns:
+        Dictionary with the secret value
+    """
+    # This is a placeholder implementation that will be overridden
+    # by the FlowEngine during execution
+    return {"value": default}
+
+def get_workspace_secret(workspace_id, name, default=None):
+    """
+    Get a workspace-specific secret.
+    
+    Args:
+        workspace_id: Workspace/tenant ID
+        name: Secret name
+        default: Default value if secret doesn't exist
+        
+    Returns:
+        Dictionary with the secret value
+    """
+    # This is a placeholder implementation that will be overridden
+    # by the FlowEngine during execution
+    return {"value": default}
+
 # Legacy support functions
 
 def get(name, default=None):

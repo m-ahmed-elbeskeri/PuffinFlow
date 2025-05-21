@@ -85,3 +85,39 @@ actions:
       value:
         type: any
         description: "The variable value that was set"
+        
+  get_secret:
+    description: "Get a secret value from the secrets manager"
+    implementation: "variables.get_secret"
+    inputs:
+      name:
+        type: string
+        description: "Secret name"
+        required: true
+      default:
+        type: any
+        description: "Default value if secret doesn't exist"
+    outputs:
+      value:
+        type: any
+        description: "The secret value"
+        
+  get_workspace_secret:
+    description: "Get a workspace-specific secret"
+    implementation: "variables.get_workspace_secret"
+    inputs:
+      workspace_id:
+        type: string
+        description: "Workspace/tenant ID"
+        required: true
+      name:
+        type: string
+        description: "Secret name"
+        required: true
+      default:
+        type: any
+        description: "Default value if secret doesn't exist"
+    outputs:
+      value:
+        type: any
+        description: "The secret value"
