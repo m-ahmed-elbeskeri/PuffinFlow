@@ -1,0 +1,320 @@
+name: google_sheets
+description: "Google Sheets integration for reading and writing spreadsheet data"
+version: "1.0.0"
+
+modules:
+  - sheets
+  - auth
+  - __init__
+
+actions:
+  authenticate:
+    description: "Authenticate with Google Sheets API"
+    implementation: "auth.authenticate"
+    inputs:
+      credentials_json:
+        type: string
+        description: "Path to service account credentials JSON file or JSON content"
+        required: true
+      scopes:
+        type: array
+        description: "OAuth scopes to request"
+        required: false
+        default: ["https://www.googleapis.com/auth/spreadsheets"]
+    outputs:
+      credentials:
+        type: object
+        description: "Authorized credentials object"
+      success:
+        type: boolean
+        description: "Whether authentication was successful"
+
+  read_range:
+    description: "Read data from a specified range in a spreadsheet"
+    implementation: "sheets.read_range"
+    inputs:
+      spreadsheet_id:
+        type: string
+        description: "ID of the spreadsheet (from the URL)"
+        required: true
+      range:
+        type: string
+        description: "A1 notation of the range to read (e.g., 'Sheet1!A1:D10')"
+        required: true
+      credentials:
+        type: object
+        description: "Authorized credentials from authenticate step"
+        required: false
+      value_render_option:
+        type: string
+        description: "How values should be rendered in the output"
+        required: false
+        default: "FORMATTED_VALUE"
+        enum: ["FORMATTED_VALUE", "UNFORMATTED_VALUE", "FORMULA"]
+      date_time_render_option:
+        type: string
+        description: "How dates, times, and durations should be represented"
+        required: false
+        default: "FORMATTED_STRING"
+        enum: ["SERIAL_NUMBER", "FORMATTED_STRING"]
+    outputs:
+      values:
+        type: array
+        description: "2D array of values from the specified range"
+      range:
+        type: string
+        description: "The range that was read"
+      num_rows:
+        type: number
+        description: "Number of rows read"
+      num_columns:
+        type: number
+        description: "Number of columns in the result"
+
+  write_range:
+    description: "Write data to a specified range in a spreadsheet"
+    implementation: "sheets.write_range"
+    inputs:
+      spreadsheet_id:
+        type: string
+        description: "ID of the spreadsheet (from the URL)"
+        required: true
+      range:
+        type: string
+        description: "A1 notation of the range to write (e.g., 'Sheet1!A1:D10')"
+        required: true
+      values:
+        type: array
+        description: "2D array of values to write to the range"
+        required: true
+      credentials:
+        type: object
+        description: "Authorized credentials from authenticate step"
+        required: false
+      value_input_option:
+        type: string
+        description: "How input data should be interpreted"
+        required: false
+        default: "USER_ENTERED"
+        enum: ["RAW", "USER_ENTERED"]
+    outputs:
+      updated_range:
+        type: string
+        description: "The range that was updated"
+      updated_rows:
+        type: number
+        description: "Number of rows updated"
+      updated_columns:
+        type: number
+        description: "Number of columns updated"
+      updated_cells:
+        type: number
+        description: "Total number of cells updated"
+
+  append_values:
+    description: "Append values to a spreadsheet"
+    implementation: "sheets.append_values"
+    inputs:
+      spreadsheet_id:
+        type: string
+        description: "ID of the spreadsheet (from the URL)"
+        required: true
+      range:
+        type: string
+        description: "A1 notation of the table range (e.g., 'Sheet1!A:D')"
+        required: true
+      values:
+        type: array
+        description: "2D array of values to append"
+        required: true
+      credentials:
+        type: object
+        description: "Authorized credentials from authenticate step"
+        required: false
+      value_input_option:
+        type: string
+        description: "How input data should be interpreted"
+        required: false
+        default: "USER_ENTERED"
+        enum: ["RAW", "USER_ENTERED"]
+      insert_data_option:
+        type: string
+        description: "How the input data should be inserted"
+        required: false
+        default: "INSERT_ROWS"
+        enum: ["OVERWRITE", "INSERT_ROWS"]
+    outputs:
+      updated_range:
+        type: string
+        description: "The range that was appended to"
+      updated_rows:
+        type: number
+        description: "Number of rows appended"
+      updated_columns:
+        type: number
+        description: "Number of columns in appended data"
+      updated_cells:
+        type: number
+        description: "Total number of cells updated"
+
+  create_spreadsheet:
+    description: "Create a new Google Spreadsheet"
+    implementation: "sheets.create_spreadsheet"
+    inputs:
+      title:
+        type: string
+        description: "Title of the new spreadsheet"
+        required: true
+      sheets:
+        type: array
+        description: "List of sheet names to create"
+        required: false
+        default: ["Sheet1"]
+      credentials:
+        type: object
+        description: "Authorized credentials from authenticate step"
+        required: false
+    outputs:
+      spreadsheet_id:
+        type: string
+        description: "ID of the created spreadsheet"
+      spreadsheet_url:
+        type: string
+        description: "URL of the created spreadsheet"
+      title:
+        type: string
+        description: "Title of the created spreadsheet"
+
+  get_spreadsheet:
+    description: "Get metadata about a spreadsheet"
+    implementation: "sheets.get_spreadsheet"
+    inputs:
+      spreadsheet_id:
+        type: string
+        description: "ID of the spreadsheet (from the URL)"
+        required: true
+      credentials:
+        type: object
+        description: "Authorized credentials from authenticate step"
+        required: false
+      include_grid_data:
+        type: boolean
+        description: "Whether to include grid data in the response"
+        required: false
+        default: false
+    outputs:
+      properties:
+        type: object
+        description: "Spreadsheet properties"
+      sheets:
+        type: array
+        description: "List of sheets in the spreadsheet"
+      spreadsheet_url:
+        type: string
+        description: "URL of the spreadsheet"
+
+  list_spreadsheets:
+    description: "List spreadsheets available to the authenticated user"
+    implementation: "sheets.list_spreadsheets"
+    inputs:
+      credentials:
+        type: object
+        description: "Authorized credentials from authenticate step"
+        required: false
+      max_results:
+        type: number
+        description: "Maximum number of spreadsheets to return"
+        required: false
+        default: 100
+    outputs:
+      spreadsheets:
+        type: array
+        description: "List of spreadsheet metadata"
+
+  format_range:
+    description: "Format cells in a specified range"
+    implementation: "sheets.format_range"
+    inputs:
+      spreadsheet_id:
+        type: string
+        description: "ID of the spreadsheet (from the URL)"
+        required: true
+      range:
+        type: string
+        description: "A1 notation of the range to format (e.g., 'Sheet1!A1:D10')"
+        required: true
+      credentials:
+        type: object
+        description: "Authorized credentials from authenticate step"
+        required: false
+      background_color:
+        type: object
+        description: "RGB color for cell background (e.g., {'red': 1, 'green': 0, 'blue': 0})"
+        required: false
+      text_format:
+        type: object
+        description: "Text formatting options"
+        required: false
+      horizontal_alignment:
+        type: string
+        description: "Horizontal alignment of text in cells"
+        required: false
+        enum: ["LEFT", "CENTER", "RIGHT"]
+      vertical_alignment:
+        type: string
+        description: "Vertical alignment of text in cells"
+        required: false
+        enum: ["TOP", "MIDDLE", "BOTTOM"]
+      bold:
+        type: boolean
+        description: "Whether text should be bold"
+        required: false
+      italic:
+        type: boolean
+        description: "Whether text should be italic"
+        required: false
+      font_size:
+        type: number
+        description: "Font size in points"
+        required: false
+    outputs:
+      updated_range:
+        type: string
+        description: "The range that was formatted"
+      updated_cells:
+        type: number
+        description: "Number of cells updated"
+
+  create_sheet:
+    description: "Add a new sheet to an existing spreadsheet"
+    implementation: "sheets.create_sheet"
+    inputs:
+      spreadsheet_id:
+        type: string
+        description: "ID of the spreadsheet (from the URL)"
+        required: true
+      title:
+        type: string
+        description: "Title of the new sheet"
+        required: true
+      credentials:
+        type: object
+        description: "Authorized credentials from authenticate step"
+        required: false
+      rows:
+        type: number
+        description: "Number of rows in the new sheet"
+        required: false
+        default: 1000
+      columns:
+        type: number
+        description: "Number of columns in the new sheet"
+        required: false
+        default: 26
+    outputs:
+      sheet_id:
+        type: number
+        description: "ID of the created sheet"
+      title:
+        type: string
+        description: "Title of the created sheet"

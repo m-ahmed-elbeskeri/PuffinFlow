@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../../flows:/app/flows
+    environment:
+      - FLOWFORGE_DEBUG=0
+      - FLOWFORGE_FLOWS_DIR=/app/flows
+    networks:
+      - flowforge
+
+  worker:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.worker
+    volumes:
+      - ../../flows:/app/flows
+    environment:
+      - FLOWFORGE_DEBUG=0
+      - FLOWFORGE_FLOWS_DIR=/app/flows
+    networks:
+      - flowforge
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - flowforge
+
+  # Optional UI component
+  ui:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.ui
+    ports:
+      - "3000:3000"
+    environment:
+      - API_URL=http://api:8000
+    networks:
+      - flowforge
+    depends_on:
+      - api
+
+networks:
+  flowforge:

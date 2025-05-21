@@ -1,0 +1,327 @@
+name: http_request
+description: HTTP integration for making requests to external services
+version: 1.0.0
+author: FlowForge
+modules:
+  - http
+  - __init__
+
+actions:
+  request:
+    description: Make a generic HTTP request
+    implementation: http.request
+    inputs:
+      url:
+        type: string
+        description: The URL to send the request to
+        required: true
+        examples:
+          - "https://api.example.com/data"
+      method:
+        type: string
+        description: HTTP method to use
+        required: true
+        default: "GET"
+        examples:
+          - "GET"
+          - "POST"
+      headers:
+        type: object
+        description: HTTP headers to include in the request
+        required: false
+        default: {}
+        examples:
+          - {"Content-Type": "application/json", "Authorization": "Bearer token123"}
+      params:
+        type: object
+        description: Query parameters to include in the URL
+        required: false
+        default: {}
+        examples:
+          - {"page": 1, "limit": 10}
+      data:
+        type: any
+        description: Request body (for POST, PUT, PATCH)
+        required: false
+        examples:
+          - {"name": "Example", "value": 123}
+      json:
+        type: object
+        description: JSON request body (alternative to data, automatically sets Content-Type)
+        required: false
+        examples:
+          - {"name": "Example", "value": 123}
+      auth:
+        type: object
+        description: Authentication credentials (username, password)
+        required: false
+        examples:
+          - {"username": "user", "password": "pass"}
+      timeout:
+        type: number
+        description: Request timeout in seconds
+        required: false
+        default: 30
+      verify:
+        type: boolean
+        description: Verify SSL certificates
+        required: false
+        default: true
+    outputs:
+      status:
+        type: number
+        description: HTTP status code
+      response:
+        type: string
+        description: Response body as text
+      json:
+        type: object
+        description: Response parsed as JSON (if applicable)
+      headers:
+        type: object
+        description: Response headers
+      url:
+        type: string
+        description: Final URL after redirects
+      error:
+        type: string
+        description: Error message if request failed
+      success:
+        type: boolean
+        description: Whether the request was successful (status code 2xx)
+
+  get:
+    description: Make a HTTP GET request
+    implementation: http.get
+    inputs:
+      url:
+        type: string
+        description: The URL to send the request to
+        required: true
+        examples:
+          - "https://api.example.com/data"
+      headers:
+        type: object
+        description: HTTP headers to include in the request
+        required: false
+        default: {}
+      params:
+        type: object
+        description: Query parameters to include in the URL
+        required: false
+        default: {}
+      timeout:
+        type: number
+        description: Request timeout in seconds
+        required: false
+        default: 30
+    outputs:
+      status:
+        type: number
+        description: HTTP status code
+      response:
+        type: string
+        description: Response body as text
+      json:
+        type: object
+        description: Response parsed as JSON (if applicable)
+      headers:
+        type: object
+        description: Response headers
+      success:
+        type: boolean
+        description: Whether the request was successful (status code 2xx)
+
+  post:
+    description: Make a HTTP POST request
+    implementation: http.post
+    inputs:
+      url:
+        type: string
+        description: The URL to send the request to
+        required: true
+        examples:
+          - "https://api.example.com/data"
+      headers:
+        type: object
+        description: HTTP headers to include in the request
+        required: false
+        default: {}
+      params:
+        type: object
+        description: Query parameters to include in the URL
+        required: false
+        default: {}
+      data:
+        type: any
+        description: Request body
+        required: false
+      json:
+        type: object
+        description: JSON request body (automatically sets Content-Type)
+        required: false
+      timeout:
+        type: number
+        description: Request timeout in seconds
+        required: false
+        default: 30
+    outputs:
+      status:
+        type: number
+        description: HTTP status code
+      response:
+        type: string
+        description: Response body as text
+      json:
+        type: object
+        description: Response parsed as JSON (if applicable)
+      headers:
+        type: object
+        description: Response headers
+      success:
+        type: boolean
+        description: Whether the request was successful (status code 2xx)
+
+  put:
+    description: Make a HTTP PUT request
+    implementation: http.put
+    inputs:
+      url:
+        type: string
+        description: The URL to send the request to
+        required: true
+      headers:
+        type: object
+        description: HTTP headers to include in the request
+        required: false
+        default: {}
+      params:
+        type: object
+        description: Query parameters to include in the URL
+        required: false
+        default: {}
+      data:
+        type: any
+        description: Request body
+        required: false
+      json:
+        type: object
+        description: JSON request body (automatically sets Content-Type)
+        required: false
+      timeout:
+        type: number
+        description: Request timeout in seconds
+        required: false
+        default: 30
+    outputs:
+      status:
+        type: number
+        description: HTTP status code
+      response:
+        type: string
+        description: Response body as text
+      json:
+        type: object
+        description: Response parsed as JSON (if applicable)
+      headers:
+        type: object
+        description: Response headers
+      success:
+        type: boolean
+        description: Whether the request was successful (status code 2xx)
+
+  delete:
+    description: Make a HTTP DELETE request
+    implementation: http.delete
+    inputs:
+      url:
+        type: string
+        description: The URL to send the request to
+        required: true
+      headers:
+        type: object
+        description: HTTP headers to include in the request
+        required: false
+        default: {}
+      params:
+        type: object
+        description: Query parameters to include in the URL
+        required: false
+        default: {}
+      data:
+        type: any
+        description: Request body
+        required: false
+      json:
+        type: object
+        description: JSON request body (automatically sets Content-Type)
+        required: false
+      timeout:
+        type: number
+        description: Request timeout in seconds
+        required: false
+        default: 30
+    outputs:
+      status:
+        type: number
+        description: HTTP status code
+      response:
+        type: string
+        description: Response body as text
+      json:
+        type: object
+        description: Response parsed as JSON (if applicable)
+      headers:
+        type: object
+        description: Response headers
+      success:
+        type: boolean
+        description: Whether the request was successful (status code 2xx)
+
+  patch:
+    description: Make a HTTP PATCH request
+    implementation: http.patch
+    inputs:
+      url:
+        type: string
+        description: The URL to send the request to
+        required: true
+      headers:
+        type: object
+        description: HTTP headers to include in the request
+        required: false
+        default: {}
+      params:
+        type: object
+        description: Query parameters to include in the URL
+        required: false
+        default: {}
+      data:
+        type: any
+        description: Request body
+        required: false
+      json:
+        type: object
+        description: JSON request body (automatically sets Content-Type)
+        required: false
+      timeout:
+        type: number
+        description: Request timeout in seconds
+        required: false
+        default: 30
+    outputs:
+      status:
+        type: number
+        description: HTTP status code
+      response:
+        type: string
+        description: Response body as text
+      json:
+        type: object
+        description: Response parsed as JSON (if applicable)
+      headers:
+        type: object
+        description: Response headers
+      success:
+        type: boolean
+        description: Whether the request was successful (status code 2xx)
