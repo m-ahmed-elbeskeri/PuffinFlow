@@ -1006,7 +1006,6 @@ def _process_native_control(step: Dict[str, Any], indent: str, step_var: Dict[st
     
     return code_lines
 
-
 def generate_python(flow: Dict[str, Any], registry=None, use_native_control=True, output_dir: Optional[Path] = None, import_style: str = "dynamic") -> str:
     """
     Generate Python code from a flow definition with proper variable handling and module functions.
@@ -1157,13 +1156,25 @@ def generate_python(flow: Dict[str, Any], registry=None, use_native_control=True
             
             # Try to get implementation info from registry
             if registry:
-                if hasattr(registry, 'get_implementation_for_action'):
-                    implementation = registry.get_implementation_for_action(action)
-                elif hasattr(registry, 'get_module_for_action'):
-                    _, module_name = registry.get_module_for_action(action)
+                # PATCHED: Check if get_implementation_for_action is a function before calling it
+                if hasattr(registry, 'get_implementation_for_action') and callable(registry.get_implementation_for_action):
+                    try:
+                        implementation = registry.get_implementation_for_action(action)
+                    except Exception as e:
+                        if use_native_control:
+                            print(f"Warning: Error getting implementation for action {action}: {str(e)}")
+                        implementation = None
+                # PATCHED: Check if get_module_for_action is a function before calling it
+                elif hasattr(registry, 'get_module_for_action') and callable(registry.get_module_for_action):
+                    try:
+                        _, module_name = registry.get_module_for_action(action)
+                    except Exception as e:
+                        if use_native_control:
+                            print(f"Warning: Error getting module for action {action}: {str(e)}")
+                        module_name = None
             
             # Try to parse implementation string if available
-            if implementation and '.' in implementation:
+            if implementation and isinstance(implementation, str) and '.' in implementation:
                 # Split "messages.post_message" into module "messages" and function "post_message"
                 module_name, function_name = implementation.split('.', 1)
             else:
@@ -1554,7 +1565,7 @@ def generate_python(flow: Dict[str, Any], registry=None, use_native_control=True
                 implementation = module_info.get('implementation')
                 
                 # If we have implementation info, use it to determine function name
-                if implementation and '.' in implementation:
+                if implementation and isinstance(implementation, str) and '.' in implementation:
                     module_name, func_name = implementation.split('.', 1)
                 else:
                     # Default to using the action name as the function name
@@ -1608,7 +1619,6 @@ def generate_python(flow: Dict[str, Any], registry=None, use_native_control=True
         generate_env_file(flow.get('id', 'flow'), env_vars)
     
     return result
-
 
 def generate_env_file(flow_id: str, env_vars: Set[str], output_dir: Optional[Path] = None) -> None:
     """

@@ -638,13 +638,7 @@ class FlowEngine:
         print(f"--- Step {self.executed_step_count_total}: {step_id} ({action}) ---")
 
         processed_inputs = self._process_inputs(inputs)
-        if self.debug_mode:
-            # Avoid printing huge inputs directly if they are large binary data or similar
-            debug_inputs_str = str(processed_inputs)
-            if len(debug_inputs_str) > 500:
-                debug_inputs_str = debug_inputs_str[:497] + "..."
-            print(f"DEBUG: Processed inputs for '{step_id}': {debug_inputs_str}")
-
+        
         # Special handling for variable operations
         if action.startswith('variables.'):
             var_action = action.split('.')[1]

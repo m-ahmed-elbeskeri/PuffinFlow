@@ -312,8 +312,7 @@ if __name__ == "__main__":
 
 def create_integrations_from_registry(integrations_dir: Path, flow: Dict[str, Any], registry=None) -> None:
     """
-    Copy integration files from the source or create proper implementation files based on registry definitions.
-    Excludes the variables integration which is handled natively.
+    Copy integration files from the source or create implementation files based on registry plugin definitions.
     
     Args:
         integrations_dir: Output directory for integration files
@@ -328,10 +327,9 @@ def create_integrations_from_registry(integrations_dir: Path, flow: Dict[str, An
     source_integrations_dir = find_integrations_dir(registry)
     
     # Collect required integrations and actions from the flow
-    # Use the updated function that excludes variables
     required_integrations = collect_required_integrations(flow)
     
-    # Process each required integration (variables should be excluded by the function)
+    # Process each required integration
     for integration_name, actions_by_module in required_integrations.items():
         # Create the integration directory
         target_integration_dir = integrations_dir / integration_name
@@ -343,9 +341,12 @@ def create_integrations_from_registry(integrations_dir: Path, flow: Dict[str, An
         if integration_name in registry.integrations:
             integration_manifest = registry.integrations[integration_name]
         
+        # Get plugin info if available
+        plugin_info = registry.plugins.get(integration_name) if hasattr(registry, 'plugins') else None
+        
         # Process each module in this integration
         for module_name, actions in actions_by_module.items():
-            # Try to copy the module file from source first
+            # First check if this module is part of a plugin and can be copied directly
             if source_integrations_dir:
                 source_module_file = source_integrations_dir / integration_name / f"{module_name}.py"
                 if source_module_file.exists():
@@ -353,7 +354,7 @@ def create_integrations_from_registry(integrations_dir: Path, flow: Dict[str, An
                     print(f"Copied {integration_name}.{module_name} from {source_module_file}")
                     continue
             
-            # If we couldn't copy the file, create implementation based on registry
+            # If we couldn't copy from source, create implementation based on registry
             if integration_manifest:
                 create_implementation_from_manifest(
                     target_integration_dir, 
@@ -397,7 +398,7 @@ def find_integrations_dir(registry) -> Optional[Path]:
 def collect_required_integrations(flow: Dict[str, Any]) -> Dict[str, Dict[str, Set[str]]]:
     """
     Collect integrations, modules and actions required by the flow.
-    Excludes variables and control integrations that are handled natively.
+    Excludes variables integration that is handled natively.
     
     Returns:
         Dictionary mapping integration_name -> {module_name -> set(action_names)}
@@ -431,7 +432,7 @@ def collect_required_integrations(flow: Dict[str, Any]) -> Dict[str, Dict[str, S
                 if integration not in required:
                     required[integration] = {}
                 
-                # Use action name as module name by default
+                # For plugin implementations, default to using the action name as module name
                 module_name = action_name
                 
                 # Special case handling

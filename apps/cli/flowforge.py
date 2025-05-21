@@ -1,4 +1,4 @@
-"""Updated FlowForge CLI with improved variable management and flow execution."""
+"""Updated FlowForge CLI with pure plugin-based implementation."""
 
 import os
 import sys
@@ -34,6 +34,9 @@ from packages.codegen.project_generator import generate_project
 
 from packages.core.engine import FlowEngine
 
+# Set default paths
+DEFAULT_FLOWS_DIR = Path.cwd() / "flows"
+DEFAULT_FLOWS_DIR.mkdir(exist_ok=True, parents=True)
 
 def parse_duration(duration_str: str) -> Optional[timedelta]:
     """Parses a simple duration string (e.g., "5s", "10m", "1h") into a timedelta."""
@@ -60,13 +63,13 @@ def cli():
 
 @cli.command()
 @click.argument('flow_file', type=click.Path(exists=True, dir_okay=False, resolve_path=True))
-def plan(flow_file):
+@click.option('--auto-install-deps', '-a', is_flag=True, help='Automatically install plugin dependencies')
+def plan(flow_file, auto_install_deps):
     """Generate a plan (Mermaid diagram and Python code) for a flow."""
     with open(flow_file, 'r') as f:
         flow = yaml.safe_load(f)
 
-    registry = Registry()
-    registry.load_integrations()
+    registry = Registry(auto_install_deps=auto_install_deps)
 
     mermaid = generate_mermaid(flow)
     print("\n--- Mermaid Diagram ---")
@@ -83,7 +86,8 @@ def plan(flow_file):
 @click.option('--run', '-r', is_flag=True, help='Run the flow after generating it')
 @click.option('--interactive/--no-interactive', '-i/-n', default=True, help='Enable interactive clarification')
 @click.option('--debug', is_flag=True, help='Enable debug mode for planner.')
-def generate_flow_command(request, output, model, run, interactive, debug):
+@click.option('--auto-install-deps', '-a', is_flag=True, help='Automatically install plugin dependencies')
+def generate_flow_command(request, output, model, run, interactive, debug, auto_install_deps):
     """Generate a flow definition from a natural language request."""
     try:
         api_key = os.environ.get("OPENROUTER_API_KEY")
@@ -97,8 +101,7 @@ def generate_flow_command(request, output, model, run, interactive, debug):
 
         click.echo(f"Analyzing request: '{request}' using model '{model}'")
 
-        registry = Registry()
-        registry.load_integrations()
+        registry = Registry(auto_install_deps=auto_install_deps)
 
         from planners.openrouter import openrouter as openrouter_planner_module
         from planners.openrouter import interactive as interactive_planner_module
@@ -134,10 +137,8 @@ def generate_flow_command(request, output, model, run, interactive, debug):
         flow_yaml_content = result_data["flow_definition"]
         output_path: Path
         if not output:
-            flows_dir = DEFAULT_FLOWS_DIR
-            flows_dir.mkdir(exist_ok=True)
             safe_name = "".join(c if c.isalnum() else "_" for c in request[:20].lower())
-            output_path = flows_dir / f"{safe_name}_{uuid.uuid4().hex[:8]}.yaml"
+            output_path = DEFAULT_FLOWS_DIR / f"{safe_name}_{uuid.uuid4().hex[:8]}.yaml"
         else:
             output_path = Path(output)
             output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -157,7 +158,7 @@ def generate_flow_command(request, output, model, run, interactive, debug):
             time.sleep(0.5)
             # Use click.Context().invoke to call another command
             ctx = click.get_current_context()
-            ctx.invoke(run_flow_command_entry, flow_file_path_str=str(output_path.resolve()), flow_inputs_str=None, debug=debug)
+            ctx.invoke(run_flow_command_entry, flow_file_path_str=str(output_path.resolve()), flow_inputs_str=None, debug=debug, auto_install_deps=auto_install_deps)
 
     except Exception as e:
         click.echo(f"Error generating flow: {type(e).__name__} - {e}", err=True)
@@ -175,7 +176,8 @@ def generate_flow_command(request, output, model, run, interactive, debug):
 @click.argument('flow_file_path_str', type=click.Path(exists=True, dir_okay=False, resolve_path=True))
 @click.option('--inputs', '-i', 'flow_inputs_str', type=str, help='JSON string or path to JSON file for flow inputs.')
 @click.option('--debug', is_flag=True, help='Enable debug mode for flow engine.')
-def run_flow_command_entry(flow_file_path_str, flow_inputs_str, debug):
+@click.option('--auto-install-deps', '-a', is_flag=True, help='Automatically install plugin dependencies')
+def run_flow_command_entry(flow_file_path_str, flow_inputs_str, debug, auto_install_deps):
     """Execute a flow from a YAML file, optionally with JSON inputs."""
     flow_inputs_dict: Optional[Dict[str, Any]] = None
     if flow_inputs_str:
@@ -201,8 +203,7 @@ def run_flow_command_entry(flow_file_path_str, flow_inputs_str, debug):
 
     try:
         flow_file_path_obj = Path(flow_file_path_str)
-        registry = Registry()
-        registry.load_integrations()
+        registry = Registry(auto_install_deps=auto_install_deps)
 
         engine = FlowEngine(registry, debug_mode=debug, base_flows_path=flow_file_path_obj.parent)
         engine.execute_flow(flow_file_path_obj, flow_inputs=flow_inputs_dict)
@@ -225,12 +226,12 @@ def run_flow_command_entry(flow_file_path_str, flow_inputs_str, debug):
 @click.option('--local', '-l', is_flag=True, help='Show local flow variables.')
 @click.option('--set', '-s', 'var_to_set', help='Set a local variable (format: name=value).')
 @click.option('--debug', is_flag=True, help='Enable debug mode.')
-def variables_command(flow_file_path_str, env, local, var_to_set, debug):
+@click.option('--auto-install-deps', '-a', is_flag=True, help='Automatically install plugin dependencies')
+def variables_command(flow_file_path_str, env, local, var_to_set, debug, auto_install_deps):
     """Inspect and manage flow variables."""
     try:
         flow_file_path_obj = Path(flow_file_path_str)
-        registry = Registry()
-        registry.load_integrations()
+        registry = Registry(auto_install_deps=auto_install_deps)
 
         engine = FlowEngine(registry, debug_mode=debug, base_flows_path=flow_file_path_obj.parent)
         
@@ -361,10 +362,10 @@ def serve(port):
 
 
 @cli.command("list-integrations")
-def list_integrations_command():
+@click.option('--auto-install-deps', '-a', is_flag=True, help='Automatically install plugin dependencies')
+def list_integrations_command(auto_install_deps):
     """List all available integrations and their actions."""
-    registry = Registry()
-    registry.load_integrations()
+    registry = Registry(auto_install_deps=auto_install_deps)
 
     if not registry.integrations:
         click.echo("No integrations found or loaded.")
@@ -412,17 +413,17 @@ def list_integrations_command():
 @click.argument('flow_file_path_str', type=click.Path(exists=True, dir_okay=False, resolve_path=True))
 @click.option('--output-dir', '-o', type=click.Path(file_okay=False, writable=True), default="generated_project", show_default=True, help='Output directory for the generated project.')
 @click.option('--project-name', '-n', type=str, help='Custom project name (defaults to flow ID).')
-def generate_code_command(flow_file_path_str, output_dir, project_name):
+@click.option('--auto-install-deps', '-a', is_flag=True, help='Automatically install plugin dependencies')
+def generate_code_command(flow_file_path_str, output_dir, project_name, auto_install_deps):
     """Generate a deployable Python package from a flow YAML file."""
 
     output_dir_path = Path(output_dir)
     click.echo(f"Generating Python package from flow: {flow_file_path_str}")
 
     try:
-        registry = Registry()
-        registry.load_integrations()
-
+        registry = Registry(auto_install_deps=auto_install_deps)
         flow_file_path_obj = Path(flow_file_path_str)
+        
         generated_proj_dir = generate_project(flow_file_path_obj, str(output_dir_path), project_name, registry)
 
         click.echo(f"\nProject generated successfully at: {generated_proj_dir.resolve()}")
@@ -476,7 +477,6 @@ def install_plugin(source, target):
 def list_plugins():
     """List installed plugins."""
     registry = Registry()
-    registry.load_integrations()
     
     if not registry.plugins:
         click.echo("No plugins installed")
@@ -486,6 +486,49 @@ def list_plugins():
     for name, plugin in registry.plugins.items():
         click.echo(f"  {name} v{plugin['version']}: {plugin['description']}")
         click.echo(f"    Actions: {', '.join(plugin['actions'].keys())}")
+
+@plugins.command("install-deps")
+@click.argument('plugin_name', required=False)
+@click.option('--all', '-a', is_flag=True, help="Install dependencies for all plugins")
+def install_deps(plugin_name, all):
+    """Install dependencies for plugins."""
+    from packages.sdk.plugin_loader import get_plugin_paths, find_plugin
+    import subprocess
+    
+    if not plugin_name and not all:
+        click.echo("Error: Please specify a plugin name or use --all")
+        sys.exit(1)
+    
+    plugin_dirs = []
+    
+    if all:
+        # Get all plugin directories
+        for plugin_path in get_plugin_paths():
+            if Path(plugin_path).exists():
+                for item in Path(plugin_path).iterdir():
+                    if item.is_dir() and (item / "manifest.yaml").exists():
+                        plugin_dirs.append(item)
+    else:
+        # Find specific plugin
+        plugin_path = find_plugin(plugin_name)
+        if plugin_path:
+            plugin_dirs.append(Path(plugin_path))
+        else:
+            click.echo(f"Error: Plugin '{plugin_name}' not found")
+            sys.exit(1)
+    
+    # Install dependencies for each plugin
+    for plugin_dir in plugin_dirs:
+        req_file = plugin_dir / "requirements.txt"
+        if req_file.exists():
+            click.echo(f"Installing dependencies for plugin '{plugin_dir.name}'...")
+            try:
+                subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", str(req_file)])
+                click.echo(f"Dependencies installed successfully for '{plugin_dir.name}'")
+            except Exception as e:
+                click.echo(f"Error installing dependencies for plugin '{plugin_dir.name}': {e}")
+        else:
+            click.echo(f"No requirements.txt found for plugin '{plugin_dir.name}'")
 
 if __name__ == '__main__':
     cli()
