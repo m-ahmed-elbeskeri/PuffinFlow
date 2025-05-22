@@ -10,6 +10,8 @@ setup(
     install_requires=[
         "pyyaml>=6.0",
         "requests>=2.25.0",
+        "asyncio>=3.4.3",
+        "openai>=1.0.0",
     ],
     entry_points={
         'console_scripts': [
