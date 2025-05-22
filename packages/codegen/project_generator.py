@@ -48,10 +48,19 @@ def generate_project(flow_file: Union[str, Path], output_dir: str = "generated_p
     
     # Validate flow content if registry is provided
     if registry:
-        errors = validate_flow(flow, registry)
+        issues = validate_flow(flow, registry)          # may return warnings + errors
+
+        # treat only real errors as fatal
+        errors   = [msg for msg in issues if not msg.startswith("WARNING:")]
+        warnings = [msg for msg in issues if msg.startswith("WARNING:")]
+
         if errors:
-            error_msg = "Flow validation failed:\n" + "\n".join(f"- {error}" for error in errors)
+            error_msg = "Flow validation failed:\n" + "\n".join(f"- {e}" for e in errors)
             raise ValueError(error_msg)
+
+      # still show warnings so they’re visible in the log
+        for w in warnings:
+            print(w)
     
     # Determine project name
     project_name = project_name or flow.get('id') or flow.get('name') or 'flowforge_project'
@@ -267,8 +276,8 @@ def create_flow_code(workflow_dir: Path, flow: Dict[str, Any], registry=None) ->
         print(f"DEBUG: Warning - workflow directory is not writable: {workflow_dir.absolute()}")
     
     # Pass the workflow directory to generate_python so it can place .env file there
-    flow_code = generate_python(flow, registry, use_native_control=True, output_dir=workflow_dir)
-    
+    flow_code = generate_python(flow, registry, use_native_control=True)
+
     # Write the flow.py file
     flow_file = workflow_dir / "flow.py"
     print(f"DEBUG: Writing flow code to: {flow_file.absolute()}")

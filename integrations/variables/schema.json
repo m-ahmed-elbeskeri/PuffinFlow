@@ -1,45 +1,110 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Variables Integration Actions Schema",
+  "description": "Defines the input schemas for actions in the 'variables' integration.",
   "actions": {
     "get_local": {
       "type": "object",
+      "description": "Inputs for the get_local action.",
       "properties": {
-        "name": { "type": "string", "description": "Variable name" },
-        "default": { "description": "Default value if variable doesn't exist" }
+        "name": {
+          "type": "string",
+          "description": "Variable name"
+        },
+        "default": {
+          "description": "Default value if variable doesn't exist (can be of any type)"
+        }
       },
       "required": ["name"]
     },
     "set_local": {
       "type": "object",
+      "description": "Inputs for the set_local action.",
       "properties": {
-        "name": { "type": "string", "description": "Variable name" },
-        "value": { "description": "Value to set" }
+        "name": {
+          "type": "string",
+          "description": "Variable name"
+        },
+        "value": {
+          "description": "Value to set (can be of any type)"
+        }
       },
       "required": ["name", "value"]
     },
     "get_env": {
       "type": "object",
+      "description": "Inputs for the get_env action.",
       "properties": {
-        "name": { "type": "string", "description": "Environment variable name" },
-        "default": { "type": "string", "description": "Default value if not set" }
+        "name": {
+          "type": "string",
+          "description": "Environment variable name"
+        },
+        "default": {
+          "type": "string",
+          "description": "Default value if environment variable doesn't exist"
+        }
       },
       "required": ["name"]
     },
     "get": {
       "type": "object",
+      "description": "Inputs for the get action (legacy).",
       "properties": {
-        "name": { "type": "string", "description": "Variable name" },
-        "default": { "description": "Default value if not found" }
+        "name": {
+          "type": "string",
+          "description": "Variable name"
+        },
+        "default": {
+          "description": "Default value if variable doesn't exist (can be of any type)"
+        }
       },
       "required": ["name"]
     },
     "set": {
       "type": "object",
+      "description": "Inputs for the set action (legacy).",
       "properties": {
-        "name": { "type": "string", "description": "Variable name" },
-        "value": { "description": "Value to set" }
+        "name": {
+          "type": "string",
+          "description": "Variable name"
+        },
+        "value": {
+          "description": "Value to set (can be of any type)"
+        }
       },
       "required": ["name", "value"]
+    },
+    "get_secret": {
+      "type": "object",
+      "description": "Inputs for the get_secret action.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Secret name"
+        },
+        "default": {
+          "description": "Default value if secret doesn't exist (can be of any type)"
+        }
+      },
+      "required": ["name"]
+    },
+    "get_workspace_secret": {
+      "type": "object",
+      "description": "Inputs for the get_workspace_secret action.",
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "description": "Workspace/tenant ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Secret name"
+        },
+        "default": {
+          "description": "Default value if secret doesn't exist (can be of any type)"
+        }
+      },
+      "required": ["workspace_id", "name"]
     }
   }
 }
